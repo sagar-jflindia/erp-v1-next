@@ -29,7 +29,14 @@ export default function LocationFinderDrawer({ open, onClose }) {
     const normalizedValue = String(rawValue ?? "").trim();
     if (!normalizedValue) return null;
 
-    // Supports plain IDs ("12") and QR payloads like "id: 12" / "Location ID: 12".
+    // Prevent box QR from being accepted in location scanner.
+    if (/\bbox(?:_no)?\s*uid\b/i.test(normalizedValue)) return null;
+
+    // Preferred location QR format: "location_id:12"
+    const locationIdMatch = normalizedValue.match(/\blocation[_\s]*id\s*[:=-]?\s*(\d+)\b/i);
+    if (locationIdMatch?.[1]) return locationIdMatch[1];
+
+    // Backward compatibility for old labels.
     const idMatch = normalizedValue.match(/\b(?:id|location\s*id)\s*[:=-]?\s*(\d+)\b/i);
     if (idMatch?.[1]) return idMatch[1];
 
@@ -41,7 +48,10 @@ export default function LocationFinderDrawer({ open, onClose }) {
 
   const fetchLocation = async (idOrCode) => {
     const locationId = extractLocationId(idOrCode);
-    if (!locationId) return;
+    if (!locationId) {
+      toast.error("Invalid Location QR. Please scan a Location label.");
+      return;
+    }
     setLoading(true);
     setLocationData(null);
     try {

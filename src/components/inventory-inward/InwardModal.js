@@ -8,6 +8,7 @@ import { useSelector } from "react-redux";
 
 import { inventoryInwardService } from "@/services/inventoryInward";
 import { locationService }        from "@/services/location";
+import { boxService }             from "@/services/box";
 import Drawer                     from "@/components/ui/Drawer";
 import SearchableSelect           from "../common/SearchableSelect";
 import { ERR_INPUT, OK_INPUT }    from "../common/Constants";
@@ -23,7 +24,7 @@ const MSG = {
   LOCATION_EMPTY_STATE_SUBTITLE:   "Search or scan a location to start adding boxes.",
   BOX_DUPLICATE_SAME:              "This box is already added to this location.",
   BOX_DUPLICATE_OTHER:             (locName) => `This box is already assigned to "${locName}".`,
-  BOX_PLACEHOLDER:                 "Scan or type box ID...",
+  BOX_PLACEHOLDER:                 "Scan Box UID or type Box UID...",
   INWARD_CREATED:                  "Inward entry recorded successfully.",
   INWARD_UPDATED:                  "Inward entry updated successfully.",
   INWARD_FAILED:                   "Operation failed. Please try again.",
@@ -53,6 +54,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const [selectedLocId, setSelectedLocId] = useState(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [activeLocIdxForScan, setActiveLocIdxForScan] = useState(null);
+  const [validatingBox, setValidatingBox] = useState(false);
   
   const scannerRef = useRef(null);
 
@@ -134,7 +136,14 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     const normalizedValue = String(rawValue ?? "").trim();
     if (!normalizedValue) return null;
 
-    // Supports scanner payloads like "id:2" / "Location ID: 2" and plain "2".
+    // Prevent box QR from being accepted as location.
+    if (/\bbox(?:_no)?\s*uid\b/i.test(normalizedValue)) return null;
+
+    // Preferred location QR format: "location_id:2"
+    const locationIdMatch = normalizedValue.match(/\blocation[_\s]*id\s*[:=-]?\s*(\d+)\b/i);
+    if (locationIdMatch?.[1]) return locationIdMatch[1];
+
+    // Backward compatibility for old labels.
     const idMatch = normalizedValue.match(/\b(?:id|location\s*id)\s*[:=-]?\s*(\d+)\b/i);
     if (idMatch?.[1]) return idMatch[1];
 
@@ -148,6 +157,16 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     const normalizedValue = String(rawValue ?? "").trim();
     if (!normalizedValue) return "";
 
+    if (normalizedValue.startsWith("{") && normalizedValue.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(normalizedValue);
+        if (parsed?.box_uid) return String(parsed.box_uid).trim();
+        if (parsed?.box_no_uid) return String(parsed.box_no_uid).trim();
+      } catch {
+        // Ignore JSON parse errors and continue fallback parsing.
+      }
+    }
+
     const uidMatch = normalizedValue.match(/\b(?:uid|box(?:\s*id)?|box_no_uid)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
     if (uidMatch?.[1]) return uidMatch[1].trim();
 
@@ -155,6 +174,44 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     if (idMatch?.[1]) return idMatch[1].trim();
 
     return normalizedValue.split(/\r?\n/)[0].trim();
+  };
+
+  const resolveBoxNoUid = async (rawValue) => {
+    const candidate = extractBoxCode(rawValue);
+    if (!candidate) return null;
+
+    // Primary path: QR carries box_uid/id.
+    try {
+      const byUid = await boxService.getById(candidate);
+      if (byUid?.data?.box_no_uid) {
+        return {
+          boxUid: String(byUid.data.box_uid),
+          boxNoUid: String(byUid.data.box_no_uid),
+        };
+      }
+    } catch {
+      // Ignore and try fallback paths.
+    }
+
+    // Fallback: candidate might already be box_no_uid.
+    try {
+      const byNoUid = await boxService.getAll({
+        page: 1,
+        limit: 1,
+        filters: { box_no_uid: candidate },
+      });
+      const box = Array.isArray(byNoUid?.data) ? byNoUid.data[0] : null;
+      if (box?.box_no_uid) {
+        return {
+          boxUid: String(box.box_uid),
+          boxNoUid: String(box.box_no_uid),
+        };
+      }
+    } catch {
+      // Return null below.
+    }
+
+    return null;
   };
 
   const lookupLocation = async (id) => {
@@ -178,7 +235,11 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const handleSelectChange = (id) => {
     const normalizedId = extractLocationId(id);
     setSelectedLocId(normalizedId);
-    if (!normalizedId) { clearLocSearch(); return; }
+    if (!normalizedId) {
+      clearLocSearch();
+      if (id) toast.error("Invalid Location QR. Please scan a Location label.");
+      return;
+    }
     lookupLocation(normalizedId);
   };
 
@@ -202,9 +263,13 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     setLocHasError((prev) => prev.filter((_, i) => i !== li));
   };
 
-  const tryAddBox = (li, val) => {
-    const v = extractBoxCode(val);
-    if (!v) return;
+  const tryAddBox = async (li, val) => {
+    const resolvedBox = await resolveBoxNoUid(val);
+    const v = resolvedBox?.boxNoUid || "";
+    if (!v) {
+      toast.error("Invalid box QR/UID. Please scan a valid sticker.");
+      return;
+    }
 
     // Duplicate within same location
     if (locations[li].boxes.some((b) => b.toLowerCase() === v.toLowerCase())) {
@@ -228,6 +293,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
       )
     );
     setLocHasError((prev) => prev.map((e, i) => (i === li ? false : e)));
+    toast.success(`Added: ${v}`);
   };
 
   const handleRemoveBox = (li, bi) => {
@@ -308,8 +374,10 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             handleSelectChange(decodedText);
             html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
           } else {
-            tryAddBox(locIdx, decodedText);
-            toast.success(`Box: ${decodedText}`);
+            setValidatingBox(true);
+            tryAddBox(locIdx, decodedText)
+              .then(() => {})
+              .finally(() => setValidatingBox(false));
           }
         },
         () => {} // silent on failure
@@ -325,8 +393,10 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                   handleSelectChange(decodedText);
                   html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
                 } else {
-                  tryAddBox(locIdx, decodedText);
-                  toast.success(`Box: ${decodedText}`);
+                  setValidatingBox(true);
+                  tryAddBox(locIdx, decodedText)
+                    .then(() => {})
+                    .finally(() => setValidatingBox(false));
                 }
               },
               () => {}
@@ -437,19 +507,6 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
           </div>
         )}
 
-        {/* ── Remarks ── */}
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <MessageSquare size={14} className="text-indigo-500" /> Remarks / Note
-          </label>
-          <textarea
-            value={form.remarks}
-            onChange={(e) => handleInputChange("remarks", e.target.value)}
-            placeholder={MSG.REMARKS_PLACEHOLDER}
-            className={`${OK_INPUT} min-h-[60px] py-2 text-[11px] resize-none rounded-lg border-slate-200`}
-          />
-        </div>
-
         {/* ── Location Selection ── */}
         <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 space-y-3">
           <label className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-2">
@@ -544,10 +601,10 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
 
                   <div className="p-3 space-y-3">
                     {/* Box Input Area */}
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr] gap-2">
                       <button
                         onClick={() => startCameraScanner(li)}
-                        className="h-[38px] px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center gap-2"
+                        className="h-[38px] w-full sm:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
                         title="Scan Box QR"
                       >
                         <Camera size={16} />
@@ -560,13 +617,22 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                           className={`${OK_INPUT} pl-8 font-mono text-[10px] h-[38px] rounded-lg border-slate-200`}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
-                              tryAddBox(li, e.target.value);
+                              const inputValue = e.target.value;
+                              setValidatingBox(true);
+                              tryAddBox(li, inputValue)
+                                .finally(() => setValidatingBox(false));
                               e.target.value = "";
                             }
                           }}
                         />
                       </div>
                     </div>
+                    {validatingBox && (
+                      <div className="flex items-center gap-2 px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-lg">
+                        <Loader2 size={12} className="animate-spin text-indigo-500" />
+                        <p className="text-[9px] font-bold text-indigo-600 uppercase">Validating box...</p>
+                      </div>
+                    )}
 
                     {/* Scanned Boxes List */}
                     <div className="space-y-1.5">
@@ -604,6 +670,19 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
               <p className="text-[10px] text-slate-400 mt-0.5">{MSG.LOCATION_EMPTY_STATE_SUBTITLE}</p>
             </div>
           )}
+        </div>
+
+        {/* ── Remarks ── */}
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+            <MessageSquare size={14} className="text-indigo-500" /> Remarks / Note
+          </label>
+          <textarea
+            value={form.remarks}
+            onChange={(e) => handleInputChange("remarks", e.target.value)}
+            placeholder={MSG.REMARKS_PLACEHOLDER}
+            className={`${OK_INPUT} min-h-[60px] py-2 text-[11px] resize-none rounded-lg border-slate-200`}
+          />
         </div>
 
         {/* ── Approval Status ── */}
