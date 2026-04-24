@@ -77,6 +77,7 @@ export default function LocationFinderDrawer({ open, onClose }) {
           config,
           (decodedText) => {
             // Success: Sound alert (optional) and fetch data
+            alert(decodedText);
             stopCamera();
             fetchLocation(decodedText);
           },

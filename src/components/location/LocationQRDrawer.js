@@ -11,14 +11,18 @@ export default function LocationQRDrawer({ isOpen, onClose, data }) {
   if (!data) return null;
 
   const qrValue = [
-    `Location ID: ${data.location_id}`,
-    `Rack: ${data.rack_no}`,
-    `Row: ${data.row_no}`,
-    `Capacity: ${data.total_capacity} Units`,
-    `Item Code: ${data.item_code || "Open Allocation"}`,
-    `Item: ${data.item_desc || ""}`,
-    `Customer: ${data.acc_name || "General Inventory"}`,
+    `id: ${data.location_id}`,
   ].join("\n");
+  
+  // const qrValue = [
+  //   `Location ID: ${data.location_id}`,
+  //   `Rack: ${data.rack_no}`,
+  //   `Row: ${data.row_no}`,
+  //   `Capacity: ${data.total_capacity} Units`,
+  //   `Item Code: ${data.item_code || "Open Allocation"}`,
+  //   `Item: ${data.item_desc || ""}`,
+  //   `Customer: ${data.acc_name || "General Inventory"}`,
+  // ].join("\n");
 
   const handleExport = (type = "download") => {
     const svg = qrRef.current.querySelector("svg");
