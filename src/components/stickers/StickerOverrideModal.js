@@ -100,8 +100,15 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
   // Scanning Logic
   const parseScannedValue = (raw) => {
     const text = String(raw || "").trim();
-    const uidMatch = text.match(/UID:([^|]+)/i);
-    return uidMatch ? uidMatch[1].trim() : text;
+    if (!text) return "";
+
+    const uidMatch = text.match(/\b(?:uid|box(?:\s*id)?|box_no_uid)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    if (uidMatch?.[1]) return uidMatch[1].trim();
+
+    const idMatch = text.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    if (idMatch?.[1]) return idMatch[1].trim();
+
+    return text.split(/\r?\n/)[0].trim();
   };
 
   const onScanByCode = async (rawCode) => {

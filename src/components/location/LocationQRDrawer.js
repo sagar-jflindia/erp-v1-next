@@ -10,9 +10,7 @@ export default function LocationQRDrawer({ isOpen, onClose, data }) {
 
   if (!data) return null;
 
-  const qrValue = [
-    `id: ${data.location_id}`,
-  ].join("\n");
+  const qrValue = String(data.location_id);
   
   // const qrValue = [
   //   `Location ID: ${data.location_id}`,

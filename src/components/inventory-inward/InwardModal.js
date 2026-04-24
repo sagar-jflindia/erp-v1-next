@@ -130,6 +130,33 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     if (errors[k]) setErrors((prev) => ({ ...prev, [k]: "" }));
   };
 
+  const extractLocationId = (rawValue) => {
+    const normalizedValue = String(rawValue ?? "").trim();
+    if (!normalizedValue) return null;
+
+    // Supports scanner payloads like "id:2" / "Location ID: 2" and plain "2".
+    const idMatch = normalizedValue.match(/\b(?:id|location\s*id)\s*[:=-]?\s*(\d+)\b/i);
+    if (idMatch?.[1]) return idMatch[1];
+
+    const plainNumeric = normalizedValue.match(/^\d+$/);
+    if (plainNumeric) return plainNumeric[0];
+
+    return normalizedValue;
+  };
+
+  const extractBoxCode = (rawValue) => {
+    const normalizedValue = String(rawValue ?? "").trim();
+    if (!normalizedValue) return "";
+
+    const uidMatch = normalizedValue.match(/\b(?:uid|box(?:\s*id)?|box_no_uid)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    if (uidMatch?.[1]) return uidMatch[1].trim();
+
+    const idMatch = normalizedValue.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    if (idMatch?.[1]) return idMatch[1].trim();
+
+    return normalizedValue.split(/\r?\n/)[0].trim();
+  };
+
   const lookupLocation = async (id) => {
     if (!id) return;
     setScanStatus("checking");
@@ -149,9 +176,10 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   };
 
   const handleSelectChange = (id) => {
-    setSelectedLocId(id);
-    if (!id) { clearLocSearch(); return; }
-    lookupLocation(id);
+    const normalizedId = extractLocationId(id);
+    setSelectedLocId(normalizedId);
+    if (!normalizedId) { clearLocSearch(); return; }
+    lookupLocation(normalizedId);
   };
 
   const handleAddLocation = () => {
@@ -175,7 +203,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   };
 
   const tryAddBox = (li, val) => {
-    const v = val.trim();
+    const v = extractBoxCode(val);
     if (!v) return;
 
     // Duplicate within same location
@@ -378,16 +406,21 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
         
         {/* ── Camera Scanner Overlay ── */}
         {isScannerOpen && (
-          <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
-            <div className="w-full h-full relative flex flex-col">
-              <div className="absolute top-4 right-4 z-[110]">
-                <button onClick={closeScanner} className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white transition-all">
+          <div className="fixed inset-0 z-[100] bg-slate-900/85 backdrop-blur-[1px] flex flex-col items-center justify-center p-4">
+            <div className="w-full max-w-md relative">
+              <div className="absolute top-3 right-3 z-[110]">
+                <button onClick={closeScanner} className="p-2 bg-black/35 hover:bg-black/50 rounded-full text-white transition-all">
                   <X size={20} />
                 </button>
               </div>
-              <div id="reader" className="w-full h-full [&_video]:h-full [&_video]:object-cover"></div>
-              <div className="absolute bottom-10 left-0 right-0 text-center z-[110]">
-                <p className="text-white/80 text-[10px] font-black uppercase tracking-widest bg-black/40 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
+
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-square border-4 border-slate-100 shadow-xl animate-in zoom-in-95 duration-300">
+                <div id="reader" className="w-full h-full [&_video]:h-full [&_video]:object-cover"></div>
+                <div className="absolute inset-0 pointer-events-none border-[40px] border-black/40"></div>
+              </div>
+
+              <div className="text-center mt-3 z-[110]">
+                <p className="text-white/85 text-[10px] font-black uppercase tracking-widest bg-black/30 inline-block px-4 py-2 rounded-full">
                   {activeLocIdxForScan === null ? "Scanning Location" : "Scanning Boxes"}
                 </p>
               </div>
@@ -422,16 +455,16 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
           <label className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-2">
             <MapPin size={14} /> Step 1: Select Location
           </label>
-          <div className="flex gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr,auto] gap-2 items-end">
             <button
               onClick={() => startCameraScanner(null)}
-              className="h-[38px] px-3 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all shadow-sm flex items-center gap-2"
+              className="h-[38px] w-full sm:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
               title="Scan Location QR"
             >
               <QrCode size={16} />
               <span className="text-[10px] font-black uppercase">Scan</span>
             </button>
-            <div className="flex-1 text-[11px]">
+            <div className="w-full text-[11px] min-w-0">
               <SearchableSelect
                 placeholder={MSG.LOCATION_SEARCH_PLACEHOLDER}
                 value={selectedLocId}
@@ -447,7 +480,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             <button
               onClick={handleAddLocation}
               disabled={scanStatus !== "matched"}
-              className="h-[38px] px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+              className="h-[38px] w-full sm:w-auto px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <Plus size={14} /> Add
             </button>
@@ -514,7 +547,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                     <div className="flex gap-2">
                       <button
                         onClick={() => startCameraScanner(li)}
-                        className="h-[38px] px-3 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all shadow-sm flex items-center gap-2"
+                        className="h-[38px] px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center gap-2"
                         title="Scan Box QR"
                       >
                         <Camera size={16} />
