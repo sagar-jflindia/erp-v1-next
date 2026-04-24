@@ -102,7 +102,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
     const text = String(raw || "").trim();
     if (!text) return "";
 
-    const uidMatch = text.match(/\b(?:uid|box(?:\s*id)?|box_no_uid)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    const uidMatch = text.match(/\b(?:box_uid|box_no_uid|uid|box(?:\s*id)?)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
     if (uidMatch?.[1]) return uidMatch[1].trim();
 
     const idMatch = text.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);

@@ -167,7 +167,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
       }
     }
 
-    const uidMatch = normalizedValue.match(/\b(?:uid|box(?:\s*id)?|box_no_uid)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
+    const uidMatch = normalizedValue.match(/\b(?:box_uid|box_no_uid|uid|box(?:\s*id)?)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
     if (uidMatch?.[1]) return uidMatch[1].trim();
 
     const idMatch = normalizedValue.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
