@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setCredentials, selectUser } from "@/features/authSlice";
 import { io } from "socket.io-client";
+import { FILE_BASE_URL } from "@/utils/lib";
 
 export const useSocket = (userId) => {
   const dispatch = useDispatch();
@@ -10,7 +11,8 @@ export const useSocket = (userId) => {
   useEffect(() => {
     if (!userId) return;
 
-    const socket = io("http://localhost:8000", { withCredentials: true });
+    const socket = io(FILE_BASE_URL, { withCredentials: true });
+    // const socket = io("http://localhost:8000", { withCredentials: true });
 
     socket.on("connect", () => {
       console.log("Connected to socket server");
