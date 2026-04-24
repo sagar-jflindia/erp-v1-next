@@ -25,13 +25,27 @@ export default function LocationFinderDrawer({ open, onClose }) {
     checkDevice();
   }, []);
 
+  const extractLocationId = (rawValue) => {
+    const normalizedValue = String(rawValue ?? "").trim();
+    if (!normalizedValue) return null;
+
+    // Supports plain IDs ("12") and QR payloads like "id: 12" / "Location ID: 12".
+    const idMatch = normalizedValue.match(/\b(?:id|location\s*id)\s*[:=-]?\s*(\d+)\b/i);
+    if (idMatch?.[1]) return idMatch[1];
+
+    const plainNumeric = normalizedValue.match(/^\d+$/);
+    if (plainNumeric) return plainNumeric[0];
+
+    return normalizedValue;
+  };
+
   const fetchLocation = async (idOrCode) => {
-    alert(idOrCode);  
-    if (!idOrCode) return;
+    const locationId = extractLocationId(idOrCode);
+    if (!locationId) return;
     setLoading(true);
     setLocationData(null);
     try {
-      const res = await locationService.getById(idOrCode);
+      const res = await locationService.getById(locationId);
       if (res.data) {
         setLocationData(res.data);
         setSelectedLocationId(res.data.location_id);
