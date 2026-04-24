@@ -43,7 +43,7 @@ export const ROUTES = {
   HR_PAYROLL: "/hr/payroll",
   HR_HIRING: "/hr/hiring",
 
-  ANALYTICS: "/analytics",
+  // ANALYTICS: "/analytics",
   STOCK_ADJUSTMENT: "/dashboard/stock-adjustment",
   REPORTS: "/reports",
 };
