@@ -26,6 +26,7 @@ export default function LocationFinderDrawer({ open, onClose }) {
   }, []);
 
   const fetchLocation = async (idOrCode) => {
+    alert(idOrCode);  
     if (!idOrCode) return;
     setLoading(true);
     setLocationData(null);
@@ -77,7 +78,6 @@ export default function LocationFinderDrawer({ open, onClose }) {
           config,
           (decodedText) => {
             // Success: Sound alert (optional) and fetch data
-            alert(decodedText);
             stopCamera();
             fetchLocation(decodedText);
           },
