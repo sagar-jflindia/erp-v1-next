@@ -126,8 +126,8 @@ export default function LocationModal({ open, onClose, onSuccess, editData, mode
   };
 
   const drawerFooter = (
-    <div className="flex items-center justify-end gap-3 w-full">
-      <button onClick={onClose} disabled={loading} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800">
+    <div className="flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 sm:gap-3 w-full">
+      <button onClick={onClose} disabled={loading} className="w-full sm:w-auto px-4 sm:px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl bg-white">
         Cancel
       </button>
 
@@ -136,14 +136,14 @@ export default function LocationModal({ open, onClose, onSuccess, editData, mode
           <button
             onClick={() => handleSave(false)}
             disabled={loading}
-            className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+            className="w-full sm:w-auto px-4 sm:px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
           >
             Keep Pending
           </button>
           <button
             onClick={() => handleSave(true)}
             disabled={loading}
-            className="min-w-[140px] px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+            className="w-full sm:w-auto sm:min-w-[140px] px-5 sm:px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />} Approve
           </button>
@@ -152,7 +152,7 @@ export default function LocationModal({ open, onClose, onSuccess, editData, mode
         <button
           onClick={() => handleSave()}
           disabled={loading}
-          className="min-w-[160px] px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+          className="w-full sm:w-auto sm:min-w-[160px] px-5 sm:px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
         >
           {loading ? (
             <><Loader2 size={18} className="animate-spin" /> Saving...</>

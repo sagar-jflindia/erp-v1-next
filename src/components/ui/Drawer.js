@@ -50,8 +50,8 @@ const Drawer = ({ isOpen, onClose, title, description, children, footer, maxWidt
         </div>
 
         {footer && (
-          <div className="px-4 py-2 border-t border-slate-200 flex justify-end items-center bg-slate-50 sticky bottom-0 z-30">
-            <div className="flex gap-2 items-center">
+          <div className="px-3 sm:px-4 py-2 border-t border-slate-200 flex justify-end items-center bg-slate-50 sticky bottom-0 z-30">
+            <div className="flex w-full sm:w-auto gap-2 items-center justify-end flex-wrap">
               {footer}
             </div>
           </div>
