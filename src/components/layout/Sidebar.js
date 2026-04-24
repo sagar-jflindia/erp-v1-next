@@ -75,7 +75,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, collapsed, toggle
           </div>
         ) : (
           // Single Link
-          <Link href={item.href || "#"} onClick={() => setSidebarOpen(false)}>
+          <Link href={item.href || "#"} prefetch={false} onClick={() => setSidebarOpen(false)}>
             <div className={`flex items-center px-2.5 py-2 rounded-md transition-all group mb-0.5
               ${active ? `${THEME_CONFIG.primary} ${THEME_CONFIG.itemActiveText} shadow-md` : `${THEME_CONFIG.sidebarHover} ${THEME_CONFIG.sidebarText} ${THEME_CONFIG.sidebarHoverText}`}`}
             >
