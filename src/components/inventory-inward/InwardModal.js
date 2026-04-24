@@ -57,6 +57,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const [validatingBox, setValidatingBox] = useState(false);
   
   const scannerRef = useRef(null);
+  const lastScanRef = useRef({ key: "", at: 0, mode: "" });
 
   // Permissions
   const canApprove = useSelector(selectHasPermission("inventory_inwards", "authorize"));
@@ -371,9 +372,44 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
         config,
         (decodedText) => {
           if (locIdx === null) {
-            handleSelectChange(decodedText);
+            const locationId = extractLocationId(decodedText);
+            const now = Date.now();
+            const scanKey = `loc:${locationId || ""}`;
+            if (
+              scanKey === lastScanRef.current.key &&
+              lastScanRef.current.mode === "location" &&
+              now - lastScanRef.current.at < 2000
+            ) {
+              return;
+            }
+            lastScanRef.current = { key: scanKey, at: now, mode: "location" };
+
+            if (!locationId) {
+              toast.error("Invalid Location QR. Please scan a Location label.");
+              return;
+            }
+            if (locations.some((l) => String(l.location_id) === String(locationId))) {
+              return;
+            }
+            handleSelectChange(locationId);
             html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
           } else {
+            const rawBoxCode = extractBoxCode(decodedText);
+            const now = Date.now();
+            const scanKey = `box:${rawBoxCode || ""}`;
+            if (
+              scanKey === lastScanRef.current.key &&
+              lastScanRef.current.mode === "box" &&
+              now - lastScanRef.current.at < 2000
+            ) {
+              return;
+            }
+            lastScanRef.current = { key: scanKey, at: now, mode: "box" };
+
+            if (!rawBoxCode) return;
+            if (allBoxesFlat.some(({ box }) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase())) {
+              return;
+            }
             setValidatingBox(true);
             tryAddBox(locIdx, decodedText)
               .then(() => {})
@@ -390,9 +426,44 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
               config,
               (decodedText) => {
                 if (locIdx === null) {
-                  handleSelectChange(decodedText);
+                  const locationId = extractLocationId(decodedText);
+                  const now = Date.now();
+                  const scanKey = `loc:${locationId || ""}`;
+                  if (
+                    scanKey === lastScanRef.current.key &&
+                    lastScanRef.current.mode === "location" &&
+                    now - lastScanRef.current.at < 2000
+                  ) {
+                    return;
+                  }
+                  lastScanRef.current = { key: scanKey, at: now, mode: "location" };
+
+                  if (!locationId) {
+                    toast.error("Invalid Location QR. Please scan a Location label.");
+                    return;
+                  }
+                  if (locations.some((l) => String(l.location_id) === String(locationId))) {
+                    return;
+                  }
+                  handleSelectChange(locationId);
                   html5QrCode.stop().then(() => setIsScannerOpen(false)).catch(console.error);
                 } else {
+                  const rawBoxCode = extractBoxCode(decodedText);
+                  const now = Date.now();
+                  const scanKey = `box:${rawBoxCode || ""}`;
+                  if (
+                    scanKey === lastScanRef.current.key &&
+                    lastScanRef.current.mode === "box" &&
+                    now - lastScanRef.current.at < 2000
+                  ) {
+                    return;
+                  }
+                  lastScanRef.current = { key: scanKey, at: now, mode: "box" };
+
+                  if (!rawBoxCode) return;
+                  if (allBoxesFlat.some(({ box }) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase())) {
+                    return;
+                  }
                   setValidatingBox(true);
                   tryAddBox(locIdx, decodedText)
                     .then(() => {})
@@ -512,10 +583,10 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
           <label className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-2">
             <MapPin size={14} /> Step 1: Select Location
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr,auto] gap-2 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-[auto,1fr,auto] gap-2 items-end">
             <button
               onClick={() => startCameraScanner(null)}
-              className="h-[38px] w-full sm:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
+              className="h-[38px] w-full md:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
               title="Scan Location QR"
             >
               <QrCode size={16} />
@@ -537,7 +608,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             <button
               onClick={handleAddLocation}
               disabled={scanStatus !== "matched"}
-              className="h-[38px] w-full sm:w-auto px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+              className="h-[38px] w-full md:w-auto px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <Plus size={14} /> Add
             </button>
