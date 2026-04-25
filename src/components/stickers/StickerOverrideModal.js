@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, ScanLine, QrCode, X, Trash2, Info, ShieldCheck, Check, AlertCircle, Plus } from "lucide-react";
+import { Loader2, ScanLine, QrCode, X, Trash2, Info, ShieldCheck, Check, AlertCircle, Plus, XCircle } from "lucide-react";
 import { toast } from "react-toastify";
 import { Html5Qrcode } from "html5-qrcode";
 
 import { boxService } from "@/services/box";
 import { masterService } from "@/services/master";
 import SearchableSelect from "../common/SearchableSelect";
+import RemarksTextarea from "../common/RemarksTextarea";
 import Drawer from "@/components/ui/Drawer";
 import { OK_INPUT } from "@/components/common/Constants";
 import { useCanAccess } from "@/hooks/useCanAccess";
@@ -342,16 +343,42 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       {isApprove ? (
         <>
           <button
+            type="button"
             onClick={() => handleSave(false)}
-            disabled={loading}
-            className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+            disabled={
+              loading ||
+              editData?.status === "approved" ||
+              editData?.status === "rejected" ||
+              editData?.approved === true
+            }
+            className="px-5 py-2.5 text-sm font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={
+              editData?.status === "approved" || editData?.approved
+                ? "Already approved — reject is not available from this screen."
+                : editData?.status === "rejected"
+                  ? "Request already rejected."
+                  : "Reject this pending request"
+            }
           >
-            Keep Pending
+            <XCircle size={18} /> Reject
           </button>
           <button
+            type="button"
             onClick={() => handleSave(true)}
-            disabled={loading}
-            className="min-w-[140px] px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+            disabled={
+              loading ||
+              editData?.status === "approved" ||
+              editData?.status === "rejected" ||
+              editData?.approved === true
+            }
+            className="min-w-[140px] px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={
+              editData?.status === "approved" || editData?.approved
+                ? "Already approved"
+                : editData?.status === "rejected"
+                  ? "Request already rejected"
+                  : "Approve request"
+            }
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />} Approve
           </button>
@@ -377,7 +404,11 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       isOpen={open}
       onClose={onClose}
       title={isApprove ? "Authorization Check" : isEdit ? "Edit Override Request" : "Customer Override"}
-      description="Update ledger ownership for scanned boxes"
+      description={
+        isApprove
+          ? "Pending request: use Approve or Reject. After a request is approved, it cannot be rejected from here — use Edit only if your process allows reopening."
+          : "Update ledger ownership for scanned boxes"
+      }
       footer={footerContent}
       maxWidth="max-w-2xl"
     >
@@ -416,6 +447,24 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
         )}
 
         {/* Warning Alert */}
+        {isApprove &&
+          (editData?.status === "approved" || editData?.approved === true) && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <AlertCircle size={18} className="text-slate-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-slate-700 font-medium">
+                This request is already <span className="font-bold text-slate-900">approved</span>. Approve and Reject are disabled here. To change the customer again, use{" "}
+                <span className="font-bold">Edit</span> if your process allows it (status may go back to pending).
+              </p>
+            </div>
+          )}
+        {isApprove && editData?.status === "rejected" && !editData?.approved && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <AlertCircle size={18} className="text-slate-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-slate-700 font-medium">
+              This request is already <span className="font-bold text-slate-900">rejected</span>. Approve and Reject are disabled.
+            </p>
+          </div>
+        )}
         {isEdit && editData?.status === "approved" && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
             <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
@@ -526,34 +575,31 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
           </div>
         </div>
 
-        {/* Destination Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-6">
-          <SearchableSelect
-            label="Target Customer (To)"
-            value={form.to_customer_code}
-            onChange={(id, obj) => {
-              handleChange("to_customer_code", id);
-              handleChange("to_customer_name", obj?.acc_name || "");
-            }}
-            fetchService={masterService.getLedgers}
-            getByIdService={masterService.getLedgerById}
-            dataKey="acc_code"
-            labelKey="acc_name"
-            placeholder="Search Ledger..."
-            required
-          />
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">
-              Internal Remarks
-            </label>
-            <textarea
-              value={form.remarks}
-              onChange={(e) => handleChange("remarks", e.target.value)}
-              placeholder="E.g. Customer changed..."
-              className={`${OK_INPUT} min-h-[45px] py-2 resize-none h-[45px]`}
+        {/* Destination: target customer full row, internal remarks full row below */}
+        <div className="space-y-3 border-t border-slate-100 pt-5 sm:pt-6">
+          <div className="w-full min-w-0">
+            <SearchableSelect
+              label="Target Customer (To)"
+              value={form.to_customer_code}
+              onChange={(id, obj) => {
+                handleChange("to_customer_code", id);
+                handleChange("to_customer_name", obj?.acc_name || "");
+              }}
+              fetchService={masterService.getLedgers}
+              getByIdService={masterService.getLedgerById}
+              dataKey="acc_code"
+              labelKey="acc_name"
+              placeholder="Search Ledger..."
+              required
             />
           </div>
+          <RemarksTextarea
+            label="Internal Remarks"
+            value={form.remarks}
+            onChange={(e) => handleChange("remarks", e.target.value)}
+            placeholder="Reason, reference no., instructions…"
+            rows={4}
+          />
         </div>
 
         <div className="h-px bg-slate-100" />

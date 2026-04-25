@@ -9,6 +9,7 @@ import { forwardingNoteService } from "@/services/forwardingNote";
 import { masterService }         from "@/services/master";
 import Drawer                    from "@/components/ui/Drawer";
 import SearchableSelect          from "../common/SearchableSelect";
+import RemarksTextarea           from "../common/RemarksTextarea";
 import { OK_INPUT }              from "../common/Constants";
 import { selectHasPermission }   from "@/features/authSlice";
 
@@ -657,27 +658,25 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
           </div>
         </div>
 
-        {/* ── Cartage & Remarks ── */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
+        {/* ── Cartage (compact) + Remarks (full row, same as other modals) ── */}
+        <div className="space-y-3 min-w-0">
+          <div className="space-y-1 w-full sm:max-w-[12rem] min-w-0">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cartage</label>
             <input
               type="number"
               value={form.cartage}
               onChange={(e) => handleInputChange("cartage", e.target.value)}
               placeholder="0"
-              className={`${OK_INPUT} text-[11px] h-[38px] rounded-lg border-slate-200`}
+              className={`${OK_INPUT} w-full text-[11px] h-[38px] rounded-lg border-slate-200`}
             />
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Remarks</label>
-            <input
-              value={form.remarks}
-              onChange={(e) => handleInputChange("remarks", e.target.value)}
-              placeholder="Notes..."
-              className={`${OK_INPUT} text-[11px] h-[38px] rounded-lg border-slate-200`}
-            />
-          </div>
+          <RemarksTextarea
+            label="Remarks"
+            value={form.remarks}
+            onChange={(e) => handleInputChange("remarks", e.target.value)}
+            placeholder="Dispatch notes, instructions, references…"
+            rows={4}
+          />
         </div>
 
         {/* ── Approval Toggle ── */}

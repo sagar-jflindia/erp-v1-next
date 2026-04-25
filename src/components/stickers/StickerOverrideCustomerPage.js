@@ -206,7 +206,19 @@ export default function StickerOverrideCustomerPage() {
     ["Approved By", "approved_by_name", (v) => <span className="text-[10px] text-slate-500 uppercase">{v || "—"}</span>, { width: "110px" }],
     ["Approved At", "approved_at", (v) => <span className="text-[10px] text-slate-400">{v ? dayjs(v).format("DD/MM/YY hh:mm A") : "—"}</span>, { width: "130px" }],
     
-    ["Remarks", "remarks", (v) => <span className="text-[10px] italic text-slate-400 truncate block max-w-[150px]">{v || "—"}</span>, { width: "180px" }],
+    [
+      "Remarks",
+      "remarks",
+      (v) => (
+        <span
+          className="block text-[10px] text-slate-500 line-clamp-4 whitespace-pre-wrap break-words min-w-0 max-w-full"
+          title={v ? String(v) : ""}
+        >
+          {v || "—"}
+        </span>
+      ),
+      { width: "220px", wrap: true },
+    ],
   ];
 
   return (

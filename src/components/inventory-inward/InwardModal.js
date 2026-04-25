@@ -12,6 +12,7 @@ import { boxService }             from "@/services/box";
 import { extractLocationId, detectQrType, extractBoxCode } from "@/helpers/qrScan";
 import Drawer                     from "@/components/ui/Drawer";
 import SearchableSelect           from "../common/SearchableSelect";
+import RemarksTextarea            from "../common/RemarksTextarea";
 import { ERR_INPUT, OK_INPUT }    from "../common/Constants";
 import { selectHasPermission } from "@/features/authSlice";
 
@@ -750,15 +751,14 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
         </div>
 
         {/* ── Remarks ── */}
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <MessageSquare size={14} className="text-indigo-500" /> Remarks / Note
-          </label>
-          <textarea
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <RemarksTextarea
+            label="Remarks / Note"
+            labelIcon={<MessageSquare size={14} className="text-indigo-500" />}
             value={form.remarks}
             onChange={(e) => handleInputChange("remarks", e.target.value)}
             placeholder={MSG.REMARKS_PLACEHOLDER}
-            className={`${OK_INPUT} min-h-[60px] py-2 text-[11px] resize-none rounded-lg border-slate-200`}
+            rows={4}
           />
         </div>
 

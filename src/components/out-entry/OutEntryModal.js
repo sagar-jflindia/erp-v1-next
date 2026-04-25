@@ -12,7 +12,7 @@ import { forwardingNoteService } from "@/services/forwardingNote";
 import Drawer from "@/components/ui/Drawer";
 import SearchableSelect from "../common/SearchableSelect";
 import { useCanAccess } from "@/hooks/useCanAccess";
-import { ERR_INPUT, OK_INPUT } from "@/components/common/Constants";
+import RemarksTextarea from "../common/RemarksTextarea";
 import { selectHasPermission } from "@/features/authSlice";
 
 const INITIAL_FORM = {
@@ -429,9 +429,14 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
         )}
 
         {isConfirmed && (
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Security Remarks</label>
-            <textarea rows={2} value={form.remarks} onChange={(e) => handleChange("remarks", e.target.value)} placeholder="Driver name, vehicle details..." className={`${OK_INPUT} resize-none text-[10px] py-1.5`} />
+          <div className="min-w-0">
+            <RemarksTextarea
+              label="Security Remarks"
+              value={form.remarks}
+              onChange={(e) => handleChange("remarks", e.target.value)}
+              placeholder="Driver name, vehicle details, seal no., escort…"
+              rows={3}
+            />
           </div>
         )}
         {/* ── Approval Status Toggle ── */}

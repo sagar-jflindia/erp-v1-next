@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import { stockAdjustmentService } from "@/services/stockAdjustment";
 import { masterService } from "@/services/master";
 import SearchableSelect from "../common/SearchableSelect";
+import RemarksTextarea from "../common/RemarksTextarea";
 import Drawer from "@/components/ui/Drawer";
 import { useCanAccess } from "@/hooks/useCanAccess";
 import { ERR_INPUT, OK_INPUT } from "@/components/common/Constants";
@@ -252,24 +253,16 @@ export default function StockAdjustmentModal({ open, onClose, onSuccess, editDat
           </div>
         </div>
 
-        {/* Remarks */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1">
-            <MessageSquareQuote size={12} className="text-indigo-500"/> Adjustment Reason <span className="text-rose-500">*</span>
-          </label>
-          <textarea 
-            rows={3}
-            value={form.remarks} 
-            onChange={(e) => handleInputChange("remarks", e.target.value)} 
-            placeholder="Explain why this adjustment is required (e.g., Damage, Audit Correction)..." 
-            className={errors.remarks ? ERR_INPUT : OK_INPUT} 
-          />
-          {errors.remarks && (
-            <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1 ml-1">
-              <AlertCircle size={10}/> {errors.remarks}
-            </p>
-          )}
-        </div>
+        <RemarksTextarea
+          label="Adjustment Reason"
+          labelIcon={<MessageSquareQuote size={12} className="text-indigo-500" />}
+          value={form.remarks}
+          onChange={(e) => handleInputChange("remarks", e.target.value)}
+          placeholder="Explain why this adjustment is required (e.g., Damage, Audit Correction)..."
+          error={errors.remarks}
+          required
+          rows={4}
+        />
 
         <div className="h-px bg-slate-100" />
 

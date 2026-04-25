@@ -256,6 +256,7 @@ export default function DataTable({
                           const isSticky = config?.fixed;
                           const stickyLeft = isSticky ? (config.offset || 0) + (showSelection ? 35 : 0) : 0;
                           const currentWidth = columnWidths[h[1] || i] || config.width || 150;
+                          const allowWrap = config.wrap === true;
 
                           return (
                             <td
@@ -265,7 +266,8 @@ export default function DataTable({
                                   ...(isSticky ? { left: `${stickyLeft}px` } : {}), 
                                   textAlign: config.align || 'left' 
                               }}
-                              className={`px-3 py-2 text-[13px] border-b border-r border-slate-200 transition-colors whitespace-nowrap overflow-hidden text-ellipsis
+                              className={`px-3 py-2 text-[13px] border-b border-r border-slate-200 transition-colors align-top
+                              ${allowWrap ? "whitespace-normal break-words min-w-0 overflow-hidden" : "whitespace-nowrap overflow-hidden text-ellipsis"}
                               ${isSticky ? "sticky z-20" : "text-slate-600"} ${cellBg}`}
                             >
                               {renderCell(item, h, rowIndex, "table")}
