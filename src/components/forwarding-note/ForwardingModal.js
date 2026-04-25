@@ -413,8 +413,8 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
         )}
 
         {/* ── Header fields ── */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
-          <div className="md:col-span-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          <div className="min-w-0">
             <SearchableSelect
               label="Customer / Account (Optional)"
               value={form.acc_code}
@@ -477,6 +477,18 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
               onChange={(e) => handleInputChange("vehicle_number", e.target.value)}
               placeholder="XX-00-XX-0000"
               className={`${OK_INPUT} text-[11px] h-[38px] rounded-lg border-slate-200`}
+            />
+          </div>
+
+          {/* Cartage */}
+          <div className="space-y-1 min-w-0">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cartage</label>
+            <input
+              type="number"
+              value={form.cartage}
+              onChange={(e) => handleInputChange("cartage", e.target.value)}
+              placeholder="0"
+              className={`${OK_INPUT} w-full text-[11px] h-[38px] rounded-lg border-slate-200`}
             />
           </div>
         </div>
@@ -658,18 +670,8 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
           </div>
         </div>
 
-        {/* ── Cartage (compact) + Remarks (full row, same as other modals) ── */}
+        {/* ── Remarks (full row, same as other modals) ── */}
         <div className="space-y-3 min-w-0">
-          <div className="space-y-1 w-full sm:max-w-[12rem] min-w-0">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cartage</label>
-            <input
-              type="number"
-              value={form.cartage}
-              onChange={(e) => handleInputChange("cartage", e.target.value)}
-              placeholder="0"
-              className={`${OK_INPUT} w-full text-[11px] h-[38px] rounded-lg border-slate-200`}
-            />
-          </div>
           <RemarksTextarea
             label="Remarks"
             value={form.remarks}
