@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, RefreshCw, Edit3, Trash2, CheckCircle, X, Truck, FileText, Info, List, Package } from "lucide-react";
+import { Plus, RefreshCw, Edit3, Trash2, CheckCircle, X, Truck, FileText, Info, List, Package, Unlock } from "lucide-react";
 import { toast } from "react-toastify";
+import { useSelector } from "react-redux";
 
 import { forwardingNoteService } from "@/services/forwardingNote";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -23,6 +24,7 @@ export default function ForwardingPage() {
   // --- STATES ---
   const canAccess = useCanAccess();
   const viewAccess = useMemo(() => canAccess("forwarding_note_master", "view"), [canAccess]);
+  const role = useSelector(state => state.auth.role);
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function ForwardingPage() {
   }, [viewAccess?.days]);
 
   const [params, setParams] = useState({
-    page: 1, pageSize: 500, search: "", status: "all",
+    page: 1, pageSize: 500, search: "", status: "all", lockStatus: "all",
     fromDate: defaultDates.from, toDate: defaultDates.to, sortKey: "fuid", sortDir: "desc"
   });
 
@@ -76,7 +78,8 @@ export default function ForwardingPage() {
         filters: {
           ...(params.fromDate && { from_date: `${params.fromDate} 00:00:00` }),
           ...(params.toDate && { to_date: `${params.toDate} 23:59:59` }),
-          ...(params.status !== "all" && { approved: params.status === "approved" })
+          ...(params.status !== "all" && { approved: params.status === "approved" }),
+          ...(params.lockStatus !== "all" && { out_entry_locked: params.lockStatus === "locked" })
         }
       };
 
@@ -97,11 +100,11 @@ export default function ForwardingPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.pageSize, params.sortKey, params.sortDir, params.search, params.fromDate, params.toDate, params.status, params.page, reportType]);
+  }, [params.pageSize, params.sortKey, params.sortDir, params.search, params.fromDate, params.toDate, params.status, params.lockStatus, params.page, reportType]);
 
   useEffect(() => { 
     fetchData(false); 
-  }, [params.pageSize, params.sortKey, params.sortDir, params.search, params.fromDate, params.toDate, params.status, reportType]);
+  }, [params.pageSize, params.sortKey, params.sortDir, params.search, params.fromDate, params.toDate, params.status, params.lockStatus, reportType]);
 
   const handleLoadMore = useCallback(() => {
     if (!loading && items.length < totalItems) {
@@ -117,7 +120,8 @@ export default function ForwardingPage() {
       search: tempSearch, 
       fromDate: data.fromDate, 
       toDate: data.toDate, 
-      status: data.approvedStatus || prev.status 
+      status: data.approvedStatus || prev.status,
+      lockStatus: data.lockStatus || prev.lockStatus
     }));
   };
 
@@ -128,6 +132,7 @@ export default function ForwardingPage() {
       pageSize: 500,
       search: "",
       status: "all",
+      lockStatus: "all",
       fromDate: defaultDates.from,
       toDate: defaultDates.to,
       sortKey: "fuid",
@@ -138,6 +143,18 @@ export default function ForwardingPage() {
   const openModal = (mode) => {
     setModalMode(mode);
     setModalOpen(true);
+  };
+
+  const handleUnlock = async () => {
+    if (!selectedRecord?.fuid) return;
+    try {
+      await forwardingNoteService.unlockLock(selectedRecord.fuid);
+      toast.success("Forwarding note unlocked successfully.");
+      fetchData();
+      setSelectedId(null);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to unlock forwarding note.");
+    }
   };
 
   // --- MEMOIZED VALUES ---
@@ -153,6 +170,7 @@ export default function ForwardingPage() {
       return rowId === selectedId;
     }) || null;
   }, [items, selectedId, reportType]);
+  const isSelectedLocked = Boolean(selectedRecord?.out_entry_locked);
 
   // Record to be used for Modal (Always Master level)
   const modalRecord = useMemo(() => {
@@ -176,7 +194,15 @@ export default function ForwardingPage() {
         { label: "Pending", value: "pending" }
       ]
     },
-  ], [params.status]);
+    {
+      label: "Lock Status", key: "lockStatus", value: params.lockStatus,
+      options: [
+        { label: "All Locks", value: "all" },
+        { label: "Locked", value: "locked" },
+        { label: "Unlocked", value: "unlocked" }
+      ]
+    },
+  ], [params.status, params.lockStatus]);
 
   const HEADERS = useMemo(() => {
     const baseHeaders = [
@@ -221,7 +247,29 @@ export default function ForwardingPage() {
         <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${v ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"}`}>
           {v ? "● AUTHORIZED" : "○ PENDING"}
         </span>
-      ), { width: "110px" }],
+      ), { width: "130px" }],
+      [
+        "Lock Status",
+        "out_entry_locked",
+        (v) => (
+          <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${v ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-slate-50 text-slate-500 border-slate-100"}`}>
+            {v ? "LOCKED" : "UNLOCKED"}
+          </span>
+        ),
+        { width: "120px" }
+      ],
+      [
+        "Locked By",
+        "out_entry_locked_by_name",
+        (v) => <span className="text-[10px] text-slate-500 uppercase">{v || "—"}</span>,
+        { width: "130px" }
+      ],
+      [
+        "Locked At",
+        "out_entry_locked_at",
+        (v) => <span className="text-[10px] text-slate-400">{v ? dayjs(v).format("DD/MM/YY hh:mm A") : "—"}</span>,
+        { width: "130px" }
+      ],
 
       ["Approved By", "approved_by_name", (v) => <span className="text-[10px] text-slate-500 uppercase">{v || "—"}</span>, { width: "110px" }],
       ["Approved At", "approved_at", (v) => <span className="text-[10px] text-slate-400">{v ? dayjs(v).format("DD/MM/YY hh:mm A") : "—"}</span>, { width: "130px" }],
@@ -232,7 +280,7 @@ export default function ForwardingPage() {
     ];
 
     return [...baseHeaders, ...itemCols, ...masterHeaders];
-  }, [reportType]);
+  }, [reportType, role]);
 
   return (
     <div className="flex flex-col h-full md:h-[calc(100vh-140px)] w-full bg-slate-100 md:overflow-hidden">
@@ -259,9 +307,20 @@ export default function ForwardingPage() {
               </div>
 
               <ActionButton module="forwarding_note_master" action="add" label="New" icon={Plus} onClick={() => openModal("add")} className="rounded-none h-9 text-[11px]" />
-              <ActionButton module="forwarding_note_master" action="edit" variant="outline" label="Edit" icon={Edit3} disabled={!selectedId} record={selectedRecord} onClick={() => openModal("edit")} className="rounded-none h-9 bg-white text-[11px]" />
-              <ActionButton module="forwarding_note_master" action="authorize" variant="outline" label="Approve" icon={CheckCircle} disabled={!selectedId} onClick={() => openModal("approve")} className="rounded-none h-9 bg-white text-[11px] text-emerald-600" />
-              <ActionButton module="forwarding_note_master" action="delete" variant="danger" label="Delete" icon={Trash2} disabled={!selectedId} onClick={() => setIsDeleting(true)} className="rounded-none h-9 text-[11px]" />
+              <ActionButton module="forwarding_note_master" action="edit" variant="outline" label="Edit" icon={Edit3} disabled={!selectedId || isSelectedLocked} record={selectedRecord} onClick={() => openModal("edit")} className="rounded-none h-9 bg-white text-[11px]" />
+              <ActionButton module="forwarding_note_master" action="authorize" variant="outline" label="Approve" icon={CheckCircle} disabled={!selectedId || isSelectedLocked} onClick={() => openModal("approve")} className="rounded-none h-9 bg-white text-[11px] text-emerald-600" />
+              <ActionButton module="forwarding_note_master" action="delete" variant="danger" label="Delete" icon={Trash2} disabled={!selectedId || isSelectedLocked} onClick={() => setIsDeleting(true)} className="rounded-none h-9 text-[11px]" />
+              {role === "super_admin" && (
+                <button
+                  onClick={handleUnlock}
+                  disabled={!selectedId || !isSelectedLocked}
+                  className="rounded-none h-9 px-3 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2 text-[11px] font-bold uppercase transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Super Admin: unlock out-entry lock"
+                >
+                  <Unlock size={14} />
+                  Unlock
+                </button>
+              )}
               
               <div className="hidden sm:block w-px h-6 bg-slate-300 mx-1" />
               
@@ -279,6 +338,11 @@ export default function ForwardingPage() {
               <span className="text-[10px] font-bold text-indigo-600 uppercase flex items-center gap-2">
                 <Info size={12} />
                 Selected: #{reportType === 'summary' ? selectedRecord?.fuid : `${selectedRecord?.fuid} (Item: ${selectedRecord?.item_code})`} | PO: {selectedRecord?.po_number || 'N/A'}
+                {isSelectedLocked ? (
+                  <span className="px-2 py-0.5 border border-rose-200 bg-rose-50 text-rose-600 text-[9px] font-black uppercase">
+                    Locked for Out Entry
+                  </span>
+                ) : null}
               </span>
               <button onClick={() => setSelectedId(null)} className="text-indigo-400 hover:text-indigo-600 flex items-center gap-1 font-bold text-[10px] uppercase">
                 <X size={14} /> Clear

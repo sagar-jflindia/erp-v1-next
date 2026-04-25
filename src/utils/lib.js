@@ -144,6 +144,7 @@ const ENDPOINTS = {
     CREATE: "/forwarding-notes/create",
     UPDATE: "/forwarding-notes/update",
     DELETE: "/forwarding-notes/delete",
+    UNLOCK_LOCK: "/forwarding-notes/unlock-lock",
     AVAILABLE_BOXES: "/forwarding-notes/available-boxes",
   },
 
@@ -163,6 +164,7 @@ const ENDPOINTS = {
     DELETE: "/out-entries/delete",
     VERIFY_BOX: "/out-entries/verify-box",
     GET_FUID_DETAILS: "/out-entries/get-details",
+    LOCK_FUID: "/out-entries/lock-fuid",
   },
 
   DASHBOARD: {

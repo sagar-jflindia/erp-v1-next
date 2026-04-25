@@ -134,9 +134,18 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     return () => clearTimeout(timeoutId);
   }, [open, editData]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!form.fuid) { setErrors({ fuid: "Please select a forwarding note." }); return; }
-    setIsConfirmed(true);
+    setLoading(true);
+    try {
+      await outEntryService.lockFuid(Number(form.fuid));
+      setIsConfirmed(true);
+      toast.success("Forwarding note locked for Out Entry processing.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to lock forwarding note for out entry.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = async (key, value) => {
@@ -437,7 +446,15 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
           <div className="flex-1">
             <SearchableSelect label="Forwarding Note (FUID)" value={form.fuid} onChange={(id) => handleChange("fuid", id)} fetchService={forwardingNoteService.getAll} getByIdService={forwardingNoteService.getById} dataKey="fuid" labelKey="fuid" subLabelKey="acc_name" error={errors.fuid} required disabled={isConfirmed && !isEdit} />
           </div>
-          {!isConfirmed && <button onClick={handleConfirm} className="h-[38px] px-4 bg-indigo-600 text-white font-bold text-[11px] rounded-lg">Confirm</button>}
+          {!isConfirmed && (
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="h-[38px] px-4 bg-indigo-600 text-white font-bold text-[11px] rounded-lg disabled:opacity-60"
+            >
+              {loading ? "Confirming..." : "Confirm"}
+            </button>
+          )}
         </div>
 
         {fuidDetails && isConfirmed && (

@@ -9,4 +9,5 @@ export const outEntryService = {
   delete:      (out_uid) => api(ENDPOINTS.OUT_ENTRIES.DELETE, { method: "POST", body: { out_uid } }),
   verifyBox:   (body) => api(ENDPOINTS.OUT_ENTRIES.VERIFY_BOX, { method: "POST", body }),
   getFuidDetails: (fuid) => api(ENDPOINTS.OUT_ENTRIES.GET_FUID_DETAILS, { method: "POST", body: { fuid } }),
+  lockFuid: (fuid) => api(ENDPOINTS.OUT_ENTRIES.LOCK_FUID, { method: "POST", body: { fuid } }),
 };
