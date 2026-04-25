@@ -117,7 +117,8 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
         ...params,
         filters: {
           ...(params.filters || {}),
-          approved: true
+          approved: true,
+          out_entry_available: true
         }
       }),
     []
