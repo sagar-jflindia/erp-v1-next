@@ -139,7 +139,10 @@ export default function StockAdjustmentPage() {
     },
   ], [params.status]);
 
-  const selectedRecord = useMemo(() => items.find(i => i.adjustment_id === selected), [items, selected]);
+  const selectedRecord = useMemo(
+    () => items.find((i) => String(i.adjustment_id) === String(selected)),
+    [items, selected]
+  );
 
   const HEADERS = [
     ["ADJ ID", "adjustment_id", (v) => <span className="font-mono text-indigo-600 font-bold text-[10px]">{v}</span>, { fixed: true, width: "80px" }],
@@ -207,7 +210,7 @@ export default function StockAdjustmentPage() {
                 variant="outline"
                 label="Edit"
                 icon={Edit3}
-                disabled={!selected || selectedRecord?.approved}
+                disabled={!selected}
                 record={selectedRecord}
                 onClick={() => handleOpenModal("edit", selectedRecord)}
                 className="rounded-none h-9 bg-white text-[11px] font-bold uppercase px-4 border-slate-300 shadow-none"
@@ -228,7 +231,7 @@ export default function StockAdjustmentPage() {
                 variant="danger"
                 label="Delete"
                 icon={Trash2}
-                disabled={!selected || selectedRecord?.approved}
+                disabled={!selected}
                 onClick={() => setDeleteItem(selectedRecord)}
                 className="rounded-none h-9 text-[11px] font-bold uppercase px-4 shadow-none"
               />
