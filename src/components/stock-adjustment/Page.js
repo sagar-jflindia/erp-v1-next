@@ -193,10 +193,45 @@ export default function StockAdjustmentPage() {
         <div className="px-3 py-2 bg-white border-b border-slate-200 flex flex-col gap-2 shrink-0">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <ActionButton module="stock_adjustment" action="add" label="New " icon={Plus} onClick={() => handleOpenModal("add")} className="rounded-none h-9 text-[11px] font-bold uppercase px-4 shadow-none" />
-              <ActionButton module="stock_adjustment" action="edit" variant="outline" label="Edit" icon={Edit3} disabled={!selected || selectedRecord?.approved} record={selectedRecord} onClick={() => handleOpenModal("edit", selectedRecord)} className="rounded-none h-9 bg-white text-[11px] font-bold uppercase px-4 border-slate-300 shadow-none" />
-              <ActionButton module="stock_adjustment" action="authorize" variant="outline" label="Approve" icon={CheckCircle} disabled={!selected || selectedRecord?.approved} onClick={() => handleOpenModal("approve", selectedRecord)} className="rounded-none h-9 bg-white text-[11px] font-bold uppercase px-4 border-slate-300 text-emerald-600 shadow-none" />
-              <ActionButton module="stock_adjustment" action="delete" variant="danger" label="Delete" icon={Trash2} disabled={!selected || selectedRecord?.approved} onClick={() => setDeleteItem(selectedRecord)} className="rounded-none h-9 text-[11px] font-bold uppercase px-4 shadow-none" />
+              <ActionButton
+                module="stock_adjustment"
+                action="add"
+                label="New"
+                icon={Plus}
+                onClick={() => handleOpenModal("add")}
+                className="rounded-none h-9 text-[11px] font-bold uppercase px-4 shadow-none"
+              />
+              <ActionButton
+                module="stock_adjustment"
+                action="edit"
+                variant="outline"
+                label="Edit"
+                icon={Edit3}
+                disabled={!selected || selectedRecord?.approved}
+                record={selectedRecord}
+                onClick={() => handleOpenModal("edit", selectedRecord)}
+                className="rounded-none h-9 bg-white text-[11px] font-bold uppercase px-4 border-slate-300 shadow-none"
+              />
+              <ActionButton
+                module="stock_adjustment"
+                action="authorize"
+                variant="outline"
+                label="Approve"
+                icon={CheckCircle}
+                disabled={!selected || selectedRecord?.approved}
+                onClick={() => handleOpenModal("approve", selectedRecord)}
+                className="rounded-none h-9 bg-white text-[11px] font-bold uppercase px-4 border-slate-300 text-emerald-600 shadow-none"
+              />
+              <ActionButton
+                module="stock_adjustment"
+                action="delete"
+                variant="danger"
+                label="Delete"
+                icon={Trash2}
+                disabled={!selected || selectedRecord?.approved}
+                onClick={() => setDeleteItem(selectedRecord)}
+                className="rounded-none h-9 text-[11px] font-bold uppercase px-4 shadow-none"
+              />
               
               <div className="hidden sm:block w-px h-6 bg-slate-300 mx-1" />
               
