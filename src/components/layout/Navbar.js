@@ -151,8 +151,8 @@ export default function Navbar({ setSidebarOpen, whoAmi }) {
               <div className="relative">
                 <button onClick={() => setProfileOpen(!profileOpen)} className="p-0.5 rounded-md hover:ring-1 ring-slate-700 transition-all">
                   <div className={`w-7 h-7 rounded-md ${THEME_CONFIG.primary} flex items-center justify-center text-white text-[9px] font-black shadow-inner`}>
-                    {whoAmi?.name?.substring(0, 2).toUpperCase() || "AD"}
-                  </div>
+                    {/* {whoAmi?.name?.substring(0, 2).toUpperCase() || "AD"} */}
+                    {whoAmi?.name?.split(" ").map(word => word[0]).join("").toUpperCase() || "AD"}</div>
                 </button>
                 {profileOpen && (
                   <div className={`absolute right-0 mt-2 w-36 ${THEME_CONFIG.sidebarBg} border ${THEME_CONFIG.sidebarBorder} rounded shadow-2xl py-1 z-50`}>
