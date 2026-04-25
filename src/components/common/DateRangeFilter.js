@@ -2,6 +2,13 @@
 import { useState, useEffect } from "react";
 import { CalendarDays, RotateCcw, Send } from "lucide-react";
 
+const formatDisplayDate = (value) => {
+  if (!value) return "DD/MM/YYYY";
+  const [yyyy, mm, dd] = String(value).split("-");
+  if (!yyyy || !mm || !dd) return "DD/MM/YYYY";
+  return `${dd}/${mm}/${yyyy}`;
+};
+
 export default function DateRangeFilter({
   fromDate: externalFromDate,
   toDate: externalToDate,
@@ -59,30 +66,36 @@ export default function DateRangeFilter({
         <div className="grid grid-cols-2 lg:flex lg:items-end gap-2 flex-1 lg:flex-none">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 tracking-tight italic">From Date</label>
-            <div className="flex items-center gap-2 px-2 md:px-3 h-9 rounded-none border border-slate-300 bg-white focus-within:border-slate-500 transition-all">
+            <div className="relative flex items-center gap-2 px-2 md:px-3 h-9 rounded-none border border-slate-300 bg-white focus-within:border-slate-500 transition-all">
               <CalendarDays size={14} className="text-slate-400 shrink-0" />
+              <span className={`text-[11px] md:text-xs font-medium uppercase ${localFrom ? "text-slate-700" : "text-slate-400"}`}>
+                {formatDisplayDate(localFrom)}
+              </span>
               <input 
                 type="date" 
                 value={localFrom} 
                 min={minDate}
                 max={localTo || maxDate || undefined} 
                 onChange={(e) => setLocalFrom(e.target.value)}
-                className="text-[11px] md:text-xs bg-transparent outline-none cursor-pointer uppercase font-medium w-full" 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 tracking-tight italic">To Date</label>
-            <div className="flex items-center gap-2 px-2 md:px-3 h-9 rounded-none border border-slate-300 bg-white focus-within:border-slate-500 transition-all">
+            <div className="relative flex items-center gap-2 px-2 md:px-3 h-9 rounded-none border border-slate-300 bg-white focus-within:border-slate-500 transition-all">
               <CalendarDays size={14} className="text-slate-400 shrink-0" />
+              <span className={`text-[11px] md:text-xs font-medium uppercase ${localTo ? "text-slate-700" : "text-slate-400"}`}>
+                {formatDisplayDate(localTo)}
+              </span>
               <input 
                 type="date" 
                 value={localTo} 
                 min={localFrom || minDate || undefined} 
                 max={maxDate}
                 onChange={(e) => setLocalTo(e.target.value)}
-                className="text-[11px] md:text-xs bg-transparent outline-none cursor-pointer uppercase font-medium w-full" 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
               />
             </div>
           </div>
