@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, ScanLine, Camera, CameraOff, Trash2, Info, ShieldCheck, Check, AlertCircle, Plus } from "lucide-react";
+import { Loader2, ScanLine, QrCode, X, Trash2, Info, ShieldCheck, Check, AlertCircle, Plus } from "lucide-react";
 import { toast } from "react-toastify";
+import { Html5Qrcode } from "html5-qrcode";
 
 import { boxService } from "@/services/box";
 import { masterService } from "@/services/master";
@@ -22,6 +23,9 @@ const INITIAL_FORM = {
 const getItemCodeFromBoxNoUid = (boxNoUid = "") => String(boxNoUid).split("_")[0] || "";
 const normalizeCode = (value = "") => String(value).trim().toUpperCase();
 
+/** DOM id for scanner — must not clash with Inward modal's `#reader` */
+const STICKER_SCANNER_ELEMENT_ID = "override-sticker-reader";
+
 export default function OverrideRequestDrawer({ open, onClose, onSuccess, editData, mode = "add" }) {
   // Authorization & Mode Hooks
   const canAccess = useCanAccess();
@@ -38,13 +42,28 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
 
-  // Camera Refs
-  const [cameraOn, setCameraOn] = useState(false);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const scanTimerRef = useRef(null);
-  const lastScannedRef = useRef({ value: "", at: 0 });
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const scannerRef = useRef(null);
+  const lastScanRef = useRef({ key: "", at: 0 });
   const inFlightScanRef = useRef(new Set());
+
+  const closeScanner = useCallback(() => {
+    if (scannerRef.current) {
+      if (scannerRef.current.isScanning) {
+        scannerRef.current
+          .stop()
+          .then(() => {
+            setIsScannerOpen(false);
+            scannerRef.current = null;
+          })
+          .catch(() => setIsScannerOpen(false));
+      } else {
+        setIsScannerOpen(false);
+      }
+    } else {
+      setIsScannerOpen(false);
+    }
+  }, []);
 
   // Lifecycle: Sync Data on Open/Edit
   useEffect(() => {
@@ -85,36 +104,78 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
         setForm(INITIAL_FORM);
         setScanRows([]);
         setErrors({});
-        stopCamera();
+        closeScanner();
       }, 300);
     }
     return () => {
       clearTimeout(timeoutId);
-      stopCamera();
+      closeScanner();
     };
-  }, [open, editData, isApprove]);
+  }, [open, editData, isApprove, closeScanner]);
 
   const handleChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
   };
 
+  const resolveBoxFromInput = async (rawCode) => {
+    const code = parseBoxScanRaw(rawCode);
+    if (!code) return null;
+
+    // 1) Primary key path — QR often carries box_uid (numeric / id)
+    try {
+      const byUid = await boxService.getById(code);
+      if (byUid?.data?.box_no_uid) return byUid.data;
+    } catch {
+      // continue
+    }
+
+    // 2) Sticker number — manual entry is usually box_no_uid
+    const exactRes = await boxService.getAll({
+      page: 1,
+      limit: 1,
+      filters: { box_no_uid: code },
+    });
+    let found = (exactRes.data || [])[0];
+
+    if (!found) {
+      const searchRes = await boxService.getStickerManagementList({
+        page: 1,
+        limit: 20,
+        search: code,
+      });
+      found = (searchRes.data || []).find(
+        (r) =>
+          String(r.box_no_uid).toLowerCase() === code.toLowerCase() ||
+          String(r.box_uid) === code
+      );
+    }
+
+    return found || null;
+  };
+
   const onScanByCode = async (rawCode, source = "manual") => {
     const qrType = detectQrType(rawCode);
     if (qrType === "location") {
-      toast.error("This is a Location QR. Scan a box/sticker QR here (same format as Inward).");
+      toast.error("This is a Location QR. Use box/sticker QR here (same as Inventory Inward).");
       setScanValue("");
       return;
     }
 
     const code = parseBoxScanRaw(rawCode);
     if (!code) {
-      toast.error("Invalid sticker QR. Use box_uid / box_no_uid format like other screens.");
+      toast.error("Invalid sticker QR. Same format as Inward: box_uid or box_no_uid in QR / JSON.");
       setScanValue("");
       return;
     }
 
-    if (scanRows.some((r) => String(r.box_no_uid).toLowerCase() === code.toLowerCase())) {
+    if (
+      scanRows.some(
+        (r) =>
+          String(r.box_no_uid).toLowerCase() === code.toLowerCase() ||
+          String(r.box_uid) === code
+      )
+    ) {
       setScanValue("");
       return toast.info("Box already in list");
     }
@@ -125,28 +186,10 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
 
     setLoading(true);
     try {
-      // Fetch exact box directly from DB (not paginated sticker management list)
-      // so scanning works even when total records are much larger than page limit.
-      const exactRes = await boxService.getAll({
-        page: 1,
-        limit: 1,
-        filters: { box_no_uid: code },
-      });
+      const found = await resolveBoxFromInput(rawCode);
 
-      let found = (exactRes.data || [])[0];
-
-      // Fallback for QR text variants/prefixes.
       if (!found) {
-        const searchRes = await boxService.getStickerManagementList({
-          page: 1,
-          limit: 20,
-          search: code,
-        });
-        found = (searchRes.data || []).find((r) => String(r.box_no_uid) === code);
-      }
-      
-      if (!found) {
-        toast.error("Box record not found in database");
+        toast.error("Box not found. Try box_uid (PK) from scan, or type box_no_uid (sticker no.).");
         return;
       }
 
@@ -166,7 +209,13 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       }
 
       setScanRows((prev) => {
-        if (prev.some((r) => String(r.box_no_uid).toLowerCase() === String(found.box_no_uid).toLowerCase())) {
+        if (
+          prev.some(
+            (r) =>
+              String(r.box_uid) === String(found.box_uid) ||
+              String(r.box_no_uid).toLowerCase() === String(found.box_no_uid).toLowerCase()
+          )
+        ) {
           return prev;
         }
         return [...prev, found];
@@ -180,41 +229,58 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
     }
   };
 
-  // Camera Management
-  const stopCamera = useCallback(() => {
-    if (scanTimerRef.current) clearInterval(scanTimerRef.current);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
-    setCameraOn(false);
-  }, []);
+  const startStickerScanner = () => {
+    setIsScannerOpen(true);
+    setTimeout(() => {
+      const html5QrCode = new Html5Qrcode(STICKER_SCANNER_ELEMENT_ID);
+      const config = {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+      };
 
-  const startCamera = async () => {
-    if (!("BarcodeDetector" in window)) return toast.error("Scanning not supported on this browser");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraOn(true);
+      const handleDecoded = (decodedText) => {
+        if (detectQrType(decodedText) === "location") {
+          toast.error("Location QR — open Inventory Inward for locations. Scan a box sticker here.");
+          return;
+        }
+        const rawBox = parseBoxScanRaw(decodedText) || String(decodedText || "").trim();
+        if (!rawBox) return;
 
-      const detector = new window.BarcodeDetector({ formats: ["qr_code", "code_128"] });
-      scanTimerRef.current = setInterval(async () => {
-        if (!videoRef.current || videoRef.current.readyState !== 4) return;
-        try {
-          const codes = await detector.detect(videoRef.current);
-          if (codes.length > 0) {
-            const raw = codes[0].rawValue;
-            const now = Date.now();
-            if (lastScannedRef.current.value === raw && now - lastScannedRef.current.at < 2000) return;
-            lastScannedRef.current = { value: raw, at: now };
-            onScanByCode(raw, "scanner");
-          }
-        } catch (e) {}
-      }, 500);
-    } catch { toast.error("Camera access denied"); }
+        const now = Date.now();
+        const scanKey = `box:${rawBox}`;
+        if (scanKey === lastScanRef.current.key && now - lastScanRef.current.at < 2000) {
+          return;
+        }
+        lastScanRef.current = { key: scanKey, at: now };
+
+        onScanByCode(decodedText, "scanner");
+      };
+
+      html5QrCode
+        .start({ facingMode: "environment" }, config, handleDecoded, () => {})
+        .catch(() => {
+          Html5Qrcode.getCameras()
+            .then((cameras) => {
+              if (cameras && cameras.length > 0) {
+                html5QrCode
+                  .start(cameras[0].id, config, handleDecoded, () => {})
+                  .catch(() => {
+                    toast.error("Could not access camera. Please check permissions.");
+                    setIsScannerOpen(false);
+                  });
+              } else {
+                toast.error("No cameras found on this device.");
+                setIsScannerOpen(false);
+              }
+            })
+            .catch(() => {
+              toast.error("Could not access camera list.");
+              setIsScannerOpen(false);
+            });
+        });
+
+      scannerRef.current = html5QrCode;
+    }, 100);
   };
 
   const handleSave = async (statusOverride = null) => {
@@ -306,7 +372,39 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       maxWidth="max-w-2xl"
     >
       <div className="space-y-6 pb-6">
-        
+        {isScannerOpen && (
+          <div className="fixed inset-0 z-[200] bg-slate-900/85 backdrop-blur-[1px] flex flex-col items-center justify-center p-4">
+            <div className="w-full max-w-md relative">
+              <div className="absolute top-3 right-3 z-[210]">
+                <button
+                  type="button"
+                  onClick={closeScanner}
+                  className="p-2 bg-black/35 hover:bg-black/50 rounded-full text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-square border-4 border-slate-100 shadow-xl animate-in zoom-in-95 duration-300">
+                <div
+                  id={STICKER_SCANNER_ELEMENT_ID}
+                  className="w-full h-full [&_video]:h-full [&_video]:object-cover"
+                />
+                <div className="absolute inset-0 pointer-events-none border-[40px] border-black/40" />
+              </div>
+
+              <div className="text-center mt-3 z-[210]">
+                <p className="text-white/85 text-[10px] font-black uppercase tracking-widest bg-black/30 inline-block px-4 py-2 rounded-full">
+                  Scanning sticker / box QR
+                </p>
+                <p className="text-white/60 text-[9px] font-bold mt-2 px-2">
+                  Same camera panel as Inventory Inward — QR usually has box_uid; type sticker no. (box_no_uid) below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Warning Alert */}
         {isEdit && editData?.status === "approved" && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
@@ -317,53 +415,49 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
           </div>
         )}
 
-        {/* Input & Scan Section */}
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex justify-between">
-            <span>Sticker Input</span>
-            <span className={scanRows.length > 0 ? "text-indigo-600 font-bold" : ""}>
-              Packing No: {scanRows[0]?.packing_number || "---"}
+        {/* Sticker input — same row pattern as Inventory Inward (Scan + manual + Add) */}
+        <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 space-y-2">
+          <label className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest ml-1 flex justify-between items-center gap-2">
+            <span>Sticker input (box table)</span>
+            <span className={scanRows.length > 0 ? "text-indigo-800 font-black" : "text-indigo-400"}>
+              Packing: {scanRows[0]?.packing_number || "—"}
             </span>
           </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <p className="text-[9px] text-indigo-700/80 font-medium px-1 leading-snug">
+            <span className="font-black">Scan</span> → QR usually carries <span className="font-mono">box_uid</span> (PK).{" "}
+            <span className="font-black">Type</span> → sticker number <span className="font-mono">box_no_uid</span>. Same QR rules as Inward.
+          </p>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+            <button
+              type="button"
+              onClick={startStickerScanner}
+              disabled={loading || isScannerOpen}
+              className="h-[40px] w-full sm:w-auto sm:shrink-0 px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Open camera scanner (same as Inventory Inward)"
+            >
+              <QrCode size={16} />
+              <span className="text-[10px] font-black uppercase">Scan</span>
+            </button>
+            <div className="relative flex-1 min-w-0 w-full">
+              <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none" size={16} />
               <input
                 value={scanValue}
                 onChange={(e) => setScanValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && onScanByCode(scanValue, "manual")}
-                placeholder="Box/sticker QR (same as Inward) — Enter to add..."
-                className={`${OK_INPUT} pl-10 h-12 bg-white`}
+                placeholder="Type box_no_uid (sticker) or paste QR text — Enter…"
+                className={`${OK_INPUT} pl-10 h-[40px] text-[11px] bg-white border-slate-200 rounded-lg`}
               />
             </div>
-            
             <button
-              onClick={() => (cameraOn ? stopCamera() : startCamera())}
-              className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all shadow-sm ${
-                cameraOn ? "bg-rose-50 border-rose-200 text-rose-600" : "bg-white border-slate-200 text-slate-600"
-              }`}
-            >
-              {cameraOn ? <CameraOff size={20} /> : <Camera size={20} />}
-            </button>
-
-            <button 
+              type="button"
               onClick={() => onScanByCode(scanValue, "manual")}
-              disabled={!scanValue || loading}
-              className="px-5 h-12 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-black transition-all disabled:bg-slate-300"
+              disabled={!scanValue?.trim() || loading}
+              className="h-[40px] w-full sm:w-auto sm:shrink-0 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
-              <Plus size={16} /> ADD
+              <Plus size={14} /> Add
             </button>
           </div>
         </div>
-
-        {/* Camera Visual */}
-        {cameraOn && (
-          <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-slate-200 shadow-2xl aspect-video max-h-52">
-            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-            <div className="absolute inset-0 border-[20px] border-black/40 pointer-events-none" />
-            <div className="absolute inset-x-10 top-1/2 -translate-y-1/2 h-0.5 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.8)] animate-pulse" />
-          </div>
-        )}
 
         {/* Selected Rows Table */}
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
@@ -393,7 +487,8 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-slate-50 text-slate-400 z-10 shadow-sm">
                   <tr className="border-b border-slate-100">
-                    <th className="text-left p-3 font-semibold">Box UID</th>
+                    <th className="text-left p-3 font-semibold">Sticker (box_no_uid)</th>
+                    <th className="text-left p-3 font-semibold">PK (box_uid)</th>
                     <th className="text-left p-3 font-semibold">Current Customer</th>
                     <th className="text-right p-3 pr-5 font-semibold">Action</th>
                   </tr>
@@ -402,9 +497,12 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
                   {scanRows.map((row, idx) => (
                     <tr key={row.box_uid || idx} className="group hover:bg-indigo-50/30 transition-colors">
                       <td className="p-3">
-                        <span className="font-bold text-slate-700 uppercase">{row.box_no_uid}</span>
+                        <span className="font-bold text-slate-700 font-mono text-[10px]">{row.box_no_uid}</span>
                       </td>
-                      <td className="p-3 text-slate-500 truncate max-w-[150px]">
+                      <td className="p-3">
+                        <span className="font-mono text-[10px] text-slate-600">{row.box_uid ?? "—"}</span>
+                      </td>
+                      <td className="p-3 text-slate-500 truncate max-w-[120px]">
                         {row.acc_name || "Stock"}
                       </td>
                       <td className="p-3 text-right pr-4">
