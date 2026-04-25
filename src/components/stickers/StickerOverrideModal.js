@@ -439,7 +439,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
               onClick={startStickerScanner}
               disabled={loading || isScannerOpen}
               className="h-[40px] w-full sm:w-auto sm:shrink-0 px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              title="Open camera scanner (same as Inventory Inward)"
+              title="Open camera scanner"
             >
               <QrCode size={16} />
               <span className="text-[10px] font-black uppercase">Scan</span>

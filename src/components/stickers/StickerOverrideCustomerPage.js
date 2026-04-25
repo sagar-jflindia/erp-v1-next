@@ -172,23 +172,29 @@ export default function StickerOverrideCustomerPage() {
       </div>
     ), { width: "340px" }],
 
-    ["Status", "approved", (v) => {
-        const status = v === true ? "approved" : (v === false ? "pending" : "pending");
-        
+    ["Status", "status", (v, row) => {
+        const status =
+          row?.status === "rejected" || row?.status === "approved" || row?.status === "pending"
+            ? row.status
+            : row?.approved === true
+              ? "approved"
+              : "pending";
+
         const colors = {
             approved: "bg-emerald-50 text-emerald-600 border-emerald-100",
-            rejected: "bg-rose-50 text-rose-600 border-rose-100", // Future use ke liye
+            rejected: "bg-rose-50 text-rose-600 border-rose-100",
             pending: "bg-amber-50 text-amber-600 border-amber-100"
         };
 
         const labels = {
             approved: "Approved",
             pending: "Pending",
+            rejected: "Rejected",
         };
 
         return (
-            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-black uppercase flex items-center gap-1 w-fit ${colors[status]}`}>
-                <span className="text-[12px]">●</span> {labels[status]}
+            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-black uppercase flex items-center gap-1 w-fit ${colors[status] || colors.pending}`}>
+                <span className="text-[12px]">●</span> {labels[status] || labels.pending}
             </span>
         );
       }, { width: "160px" }
