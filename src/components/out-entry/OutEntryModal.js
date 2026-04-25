@@ -42,11 +42,37 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
   const [scannedBoxIds, setScannedBoxIds] = useState(new Set());
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const scannerRef = useRef(null);
-  const [scanDisplayValue, setScanDisplayValue] = useState("");
   const scanBufferRef = useRef("");
   const scanTimerRef = useRef(null);
   const lastScanTsRef = useRef(0);
   const [expandedLocations, setExpandedLocations] = useState(new Set());
+  const lastCameraScanRef = useRef({ code: "", at: 0 });
+  const scanToastRef = useRef({});
+
+  const showScanToast = (level, key, message, cooldownMs = 1800) => {
+    const toastId = `out-entry-scan-${key}`;
+    if (toast.isActive(toastId)) return;
+    const now = Date.now();
+    const last = scanToastRef.current[key] || 0;
+    if (now - last < cooldownMs) return;
+    scanToastRef.current[key] = now;
+    toast[level](message, { toastId });
+  };
+
+  const stopScannerSafely = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+      // Ignore known lifecycle race: stop called after scanner already stopped.
+      if (!/not running|paused/i.test(msg)) {
+        console.error("Scanner stop failed:", err);
+      }
+    }
+  };
 
   const toggleLocation = (locId) => {
     const next = new Set(expandedLocations);
@@ -85,6 +111,11 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     }
   };
 
+  const closeScanner = () => {
+    stopScannerSafely();
+    setIsScannerOpen(false);
+  };
+
   useEffect(() => {
     let timeoutId;
     if (open) {
@@ -93,18 +124,18 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
         setForm({ fuid: initialFuid, remarks: editData.remarks || "", approved: editData?.approved ?? false });
         if (initialFuid) { fetchFuidInfo(initialFuid); setIsConfirmed(true); }
       } else {
-        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setScanDisplayValue("");
+        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set());
       }
     } else {
       timeoutId = setTimeout(() => {
-        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setScanDisplayValue(""); setErrors({});
+        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setErrors({});
       }, 300);
     }
     return () => clearTimeout(timeoutId);
   }, [open, editData]);
 
   const handleConfirm = () => {
-    if (!form.fuid) { setErrors({ fuid: "Select FUID" }); return; }
+    if (!form.fuid) { setErrors({ fuid: "Please select a forwarding note." }); return; }
     setIsConfirmed(true);
   };
 
@@ -117,7 +148,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
   const tryAddBox = (rawScanValue) => {
     const qrType = detectQrType(rawScanValue);
     if (qrType === "location") {
-      toast.error("Location QR yahan valid nahi hai. Box sticker scan karein.");
+      showScanToast("error", "invalid-qr-type", "Invalid QR type. Please scan a box sticker.");
       return;
     }
 
@@ -139,14 +170,14 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     });
 
     if (!boxData || !targetPacking) { 
-      toast.error(`Box ${bId} not found in this Forwarding Note!`); 
+      showScanToast("error", "box-not-found", `Box ${bId} was not found in this forwarding note.`);
       return; 
     }
 
     const canonicalBoxId = boxData.box_no_uid;
 
     if (scannedBoxIds.has(canonicalBoxId)) { 
-      toast.info(`Box already scanned.`); 
+      showScanToast("info", "duplicate-scan", "This box is already scanned.", 1200);
       return; 
     }
 
@@ -165,15 +196,16 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     const typeLabel = boxData.is_loose ? "Loose Boxes" : "Standard Boxes";
 
     if (alreadyScannedCount >= limit) {
-      toast.error(`Limit Reached! You only need ${limit} ${typeLabel} for Packing #${targetPacking.packing_number}.`);
+      showScanToast("error", `limit-${targetPacking.packing_number}-${typeLabel}`, `Limit reached. You only need ${limit} ${typeLabel} for packing #${targetPacking.packing_number}.`);
       return;
     }
 
     // 3. Add to scanned list
     setScannedBoxIds(prev => new Set([...prev, canonicalBoxId]));
-    setScanDisplayValue(canonicalBoxId);
-    toast.success(`Added: ${canonicalBoxId}`);
   };
+
+  // Active packing must be declared before hooks that depend on it.
+  const activeBD = fuidDetails?.items?.[activePackingIdx];
 
   // Scanner-gun flow: receives keys globally and adds on Enter.
   useEffect(() => {
@@ -232,12 +264,56 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     };
   }, [open, isConfirmed, activeBD, tryAddBox]);
 
+  useEffect(() => {
+    if (!isScannerOpen) return undefined;
+
+    const scannerElementId = "out-entry-scanner-reader";
+    const html5QrCode = new Html5Qrcode(scannerElementId);
+    scannerRef.current = html5QrCode;
+
+    const onDecoded = (decodedText) => {
+      const code = parseBoxScanRaw(decodedText)?.trim();
+      if (!code) return;
+
+      const now = Date.now();
+      if (
+        lastCameraScanRef.current.code === code &&
+        now - lastCameraScanRef.current.at < 1200
+      ) {
+        return;
+      }
+      lastCameraScanRef.current = { code, at: now };
+      tryAddBox(decodedText);
+    };
+
+    const config = { fps: 12, qrbox: { width: 240, height: 240 } };
+
+    html5QrCode
+      .start({ facingMode: "environment" }, config, onDecoded, () => {})
+      .catch(() =>
+        Html5Qrcode.getCameras().then((cams) => {
+          if (!cams?.length) throw new Error("No camera");
+          return html5QrCode.start(cams[0].id, config, onDecoded, () => {});
+        })
+      )
+      .catch(() => {
+        showScanToast(
+          "error",
+          "camera-open-failed",
+          "Unable to open the camera. Please check browser permissions.",
+          3000
+        );
+        setIsScannerOpen(false);
+      });
+
+    return () => {
+      stopScannerSafely();
+    };
+  }, [isScannerOpen, tryAddBox]);
+
   const handleInputChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
-
-  // Keep active packing resolved before hooks that depend on it.
-  const activeBD = fuidDetails?.items?.[activePackingIdx];
 
   const handleSave = async (statusOverride = null) => {
     if (!form.fuid) return;
@@ -313,6 +389,37 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
       maxWidth="max-w-5xl"
     >
       <div className="space-y-4 pb-4">
+        {isScannerOpen && (
+          <div className="fixed inset-0 z-[200] bg-slate-900/85 backdrop-blur-[1px] flex flex-col items-center justify-center p-4">
+            <div className="w-full max-w-md relative">
+              <div className="absolute top-3 right-3 z-[210]">
+                <button
+                  type="button"
+                  onClick={closeScanner}
+                  className="p-2 bg-black/35 hover:bg-black/50 rounded-full text-white transition-all"
+                  title="Close scanner"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-square border-4 border-slate-100 shadow-xl animate-in zoom-in-95 duration-300">
+                <div id="out-entry-scanner-reader" className="w-full h-full [&_video]:h-full [&_video]:object-cover" />
+                <div className="absolute inset-0 pointer-events-none border-[40px] border-black/40" />
+              </div>
+
+              <div className="text-center mt-3 z-[210]">
+                <p className="text-white/85 text-[10px] font-black uppercase tracking-widest bg-black/30 inline-block px-4 py-2 rounded-full">
+                  Scanning box sticker
+                </p>
+                <p className="text-white/60 text-[9px] font-bold mt-2 px-2">
+                  Same scanner format as other modules. Scan one sticker at a time.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isEdit && editData?.approved && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
             <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
@@ -427,17 +534,18 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
                     </div>
                   </div>
                   
-                  <div className="relative">
-                    <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 animate-pulse" />
-                    <input
-                      type="text"
-                      value={scanDisplayValue}
-                      readOnly
-                      placeholder="Scan box sticker... auto add on scan"
-                      className="w-full pl-10 pr-3 py-3 text-xs font-mono border-2 border-indigo-100 rounded-xl outline-none shadow-inner bg-white text-slate-700"
-                    />
-                    <p className="mt-1 text-[9px] text-indigo-500 font-bold uppercase tracking-wide">
-                      Scan only mode active - warehouse list is view-only
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-white border border-indigo-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      disabled={isScannerOpen}
+                      className="h-[40px] w-full sm:w-auto sm:shrink-0 px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <QrCode size={16} />
+                      <span className="text-[10px] font-black uppercase">Scan</span>
+                    </button>
+                    <p className="text-[9px] text-indigo-600 font-bold uppercase tracking-wide">
+                      Only scan mode - scanned boxes go directly to list
                     </p>
                   </div>
 

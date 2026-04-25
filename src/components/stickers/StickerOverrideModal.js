@@ -57,6 +57,17 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
   const scannerRef = useRef(null);
   const lastScanRef = useRef({ key: "", at: 0 });
   const inFlightScanRef = useRef(new Set());
+  const scanToastRef = useRef({});
+
+  const showScanToast = (level, key, message, cooldownMs = 1800) => {
+    const toastId = `override-scan-${key}`;
+    if (toast.isActive(toastId)) return;
+    const now = Date.now();
+    const last = scanToastRef.current[key] || 0;
+    if (now - last < cooldownMs) return;
+    scanToastRef.current[key] = now;
+    toast[level](message, { toastId });
+  };
 
   const closeScanner = useCallback(() => {
     if (scannerRef.current) {
@@ -168,14 +179,14 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
   const onScanByCode = async (rawCode, source = "manual") => {
     const qrType = detectQrType(rawCode);
     if (qrType === "location") {
-      toast.error("This is a Location QR. Use box/sticker QR here (same as Inventory Inward).");
+      showScanToast("error", "invalid-location-qr", "This is a location QR. Use a box/sticker QR here.");
       setScanValue("");
       return;
     }
 
     const code = parseBoxScanRaw(rawCode);
     if (!code) {
-      toast.error("Invalid sticker QR. Same format as Inward: box_uid or box_no_uid in QR / JSON.");
+      showScanToast("error", "invalid-sticker-qr", "Invalid sticker QR. Expected box_uid or box_no_uid format.");
       setScanValue("");
       return;
     }
@@ -188,7 +199,8 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       )
     ) {
       setScanValue("");
-      return toast.info("Box already in list");
+      showScanToast("info", "duplicate-box", "Box already in list.", 1200);
+      return;
     }
 
     const lockKey = `${source}:${code.toLowerCase()}`;
@@ -200,7 +212,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       const found = await resolveBoxFromInput(rawCode);
 
       if (!found) {
-        toast.error("Box not found. Try box_uid (PK) from scan, or type box_no_uid (sticker no.).");
+        showScanToast("error", "box-not-found", "Box not found. Try scanning box_uid or enter box_no_uid.");
         return;
       }
 
@@ -208,13 +220,13 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       if (scanRows.length > 0) {
         const first = scanRows[0];
         if (String(found.packing_number) !== String(first.packing_number)) {
-          toast.error(
+          showScanToast("error", "packing-mismatch",
             `Same packing only: first sticker is packing #${first.packing_number}. This box is #${found.packing_number}.`
           );
           return;
         }
         if (itemCode !== normalizeCode(getItemCodeFromBoxNoUid(first.box_no_uid))) {
-          toast.error("Item code must match the first scanned sticker for this request.");
+          showScanToast("error", "item-mismatch", "Item code must match the first scanned sticker for this request.");
           return;
         }
       }
@@ -233,7 +245,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       });
       setScanValue("");
     } catch (err) {
-      toast.error("Box lookup failed");
+      showScanToast("error", "lookup-failed", "Box lookup failed.");
     } finally {
       if (source === "scanner") inFlightScanRef.current.delete(lockKey);
       setLoading(false);
@@ -251,7 +263,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
 
       const handleDecoded = (decodedText) => {
         if (detectQrType(decodedText) === "location") {
-          toast.error("Location QR — open Inventory Inward for locations. Scan a box sticker here.");
+          showScanToast("error", "invalid-location-qr", "Location QR detected. Scan a box sticker here.");
           return;
         }
         const rawBox = parseBoxScanRaw(decodedText) || String(decodedText || "").trim();
@@ -276,16 +288,16 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
                 html5QrCode
                   .start(cameras[0].id, config, handleDecoded, () => {})
                   .catch(() => {
-                    toast.error("Could not access camera. Please check permissions.");
+                    showScanToast("error", "camera-permission", "Could not access camera. Please check permissions.", 3000);
                     setIsScannerOpen(false);
                   });
               } else {
-                toast.error("No cameras found on this device.");
+                showScanToast("error", "camera-not-found", "No cameras found on this device.", 3000);
                 setIsScannerOpen(false);
               }
             })
             .catch(() => {
-              toast.error("Could not access camera list.");
+              showScanToast("error", "camera-list", "Could not access camera list.", 3000);
               setIsScannerOpen(false);
             });
         });

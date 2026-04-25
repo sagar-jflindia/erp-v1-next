@@ -61,6 +61,17 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const scannerRef = useRef(null);
   const lastScanRef = useRef({ key: "", at: 0, mode: "" });
   const inFlightScanRef = useRef(new Set());
+  const scanToastRef = useRef({});
+
+  const showScanToast = (level, key, message, cooldownMs = 1800) => {
+    const toastId = `inward-scan-${key}`;
+    if (toast.isActive(toastId)) return;
+    const now = Date.now();
+    const last = scanToastRef.current[key] || 0;
+    if (now - last < cooldownMs) return;
+    scanToastRef.current[key] = now;
+    toast[level](message, { toastId });
+  };
 
   // Permissions
   const canApprove = useSelector(selectHasPermission("inventory_inwards", "authorize"));
@@ -226,7 +237,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const tryAddBox = async (li, val, source = "manual") => {
     const detectedType = detectQrType(val);
     if (detectedType === "location") {
-      toast.error("This is a Location QR. Please scan a Box QR in Step 2.");
+      showScanToast("error", "box-scan-location-qr", "This is a location QR. Please scan a box QR in Step 2.");
       return;
     }
 
@@ -242,13 +253,13 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     const resolvedBox = await resolveBoxNoUid(val);
     const v = resolvedBox?.boxNoUid || "";
     if (!v) {
-      toast.error("Invalid box QR/UID. Please scan a valid sticker.");
+      showScanToast("error", "invalid-box-qr", "Invalid box QR/UID. Please scan a valid sticker.");
       return;
     }
 
     // Duplicate within same location
     if (locations[li].boxes.some((b) => b.toLowerCase() === v.toLowerCase())) {
-      toast.error(MSG.BOX_DUPLICATE_SAME);
+      showScanToast("info", "duplicate-same-location", MSG.BOX_DUPLICATE_SAME, 1200);
       return;
     }
 
@@ -258,7 +269,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
         otherLi !== li && box.toLowerCase() === v.toLowerCase()
     );
     if (existsInOther) {
-      toast.error(MSG.BOX_DUPLICATE_OTHER(existsInOther.locName));
+      showScanToast("error", `duplicate-other-${existsInOther.locName}`, MSG.BOX_DUPLICATE_OTHER(existsInOther.locName), 1500);
       return;
     }
 
@@ -272,7 +283,6 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
       );
     });
     setLocHasError((prev) => prev.map((e, i) => (i === li ? false : e)));
-    toast.success(`Added: ${v}`);
     } finally {
       if (source === "scanner") {
         inFlightScanRef.current.delete(scanLockKey);
@@ -357,7 +367,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
           if (locIdx === null) {
             const qrType = detectQrType(decodedText);
             if (qrType === "box") {
-              toast.error("This is a Box QR. Please scan a Location QR in Step 1.");
+              showScanToast("error", "location-scan-box-qr", "This is a box QR. Please scan a location QR in Step 1.");
               return;
             }
             const locationId = extractLocationId(decodedText);
@@ -373,7 +383,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             lastScanRef.current = { key: scanKey, at: now, mode: "location" };
 
             if (!locationId) {
-              toast.error("Invalid Location QR. Please scan a Location label.");
+              showScanToast("error", "invalid-location-qr", "Invalid location QR. Please scan a location label.");
               return;
             }
             if (locations.some((l) => String(l.location_id) === String(locationId))) {
@@ -423,7 +433,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                 if (locIdx === null) {
                   const qrType = detectQrType(decodedText);
                   if (qrType === "box") {
-                    toast.error("This is a Box QR. Please scan a Location QR in Step 1.");
+                    showScanToast("error", "location-scan-box-qr", "This is a box QR. Please scan a location QR in Step 1.");
                     return;
                   }
                   const locationId = extractLocationId(decodedText);
@@ -439,7 +449,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                   lastScanRef.current = { key: scanKey, at: now, mode: "location" };
 
                   if (!locationId) {
-                    toast.error("Invalid Location QR. Please scan a Location label.");
+                    showScanToast("error", "invalid-location-qr", "Invalid location QR. Please scan a location label.");
                     return;
                   }
                   if (locations.some((l) => String(l.location_id) === String(locationId))) {
@@ -479,15 +489,15 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
               },
               () => {}
             ).catch(err2 => {
-              toast.error("Could not access camera. Please check permissions.");
+              showScanToast("error", "camera-permission", "Could not access camera. Please check permissions.", 3000);
               setIsScannerOpen(false);
             });
           } else {
-            toast.error("No cameras found on this device.");
+            showScanToast("error", "camera-not-found", "No cameras found on this device.", 3000);
             setIsScannerOpen(false);
           }
         }).catch(err3 => {
-          toast.error("Could not access camera list.");
+          showScanToast("error", "camera-list", "Could not access camera list.", 3000);
           setIsScannerOpen(false);
         });
       });
