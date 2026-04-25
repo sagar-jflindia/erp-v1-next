@@ -104,7 +104,7 @@ export default function ForwardingPage() {
 
   useEffect(() => { 
     fetchData(false); 
-  }, [params.pageSize, params.sortKey, params.sortDir, params.search, params.fromDate, params.toDate, params.status, params.lockStatus, reportType]);
+  }, [fetchData]);
 
   const handleLoadMore = useCallback(() => {
     if (!loading && items.length < totalItems) {
@@ -280,7 +280,7 @@ export default function ForwardingPage() {
     ];
 
     return [...baseHeaders, ...itemCols, ...masterHeaders];
-  }, [reportType, role]);
+  }, [reportType]);
 
   return (
     <div className="flex flex-col h-full md:h-[calc(100vh-140px)] w-full bg-slate-100 md:overflow-hidden">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Check, AlertCircle, Loader2, ShieldCheck, Hash, Truck, User, Package, ChevronRight, CheckCircle2, QrCode, ScanLine, Camera, X, MapPin, Info } from "lucide-react";
 import { toast } from "react-toastify";
 import { Html5Qrcode } from "html5-qrcode";
@@ -82,7 +82,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
   };
 
   // ── API Fetch Logic ────────────────────────────────────────────────────────
-  const fetchFuidInfo = async (id) => {
+  const fetchFuidInfo = useCallback(async (id) => {
     if (!id) return;
     setFetchingFuid(true);
     setFuidDetails(null);
@@ -109,7 +109,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     } finally {
       setFetchingFuid(false);
     }
-  };
+  }, [isEdit, isApprove]);
 
   const closeScanner = () => {
     stopScannerSafely();
@@ -154,7 +154,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     if (key === "fuid") { setIsConfirmed(false); if (value) fetchFuidInfo(value); else setFuidDetails(null); }
   };
 
-  const tryAddBox = (rawScanValue) => {
+  const tryAddBox = useCallback((rawScanValue) => {
     const qrType = detectQrType(rawScanValue);
     if (qrType === "location") {
       showScanToast("error", "invalid-qr-type", "Invalid QR type. Please scan a box sticker.");
@@ -214,7 +214,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
 
     // 3. Add to scanned list
     setScannedBoxIds(prev => new Set([...prev, canonicalBoxId]));
-  };
+  }, [fuidDetails, scannedBoxIds]);
 
   // Active packing must be declared before hooks that depend on it.
   const activeBD = fuidDetails?.items?.[activePackingIdx];
