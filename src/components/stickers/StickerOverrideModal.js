@@ -23,6 +23,16 @@ const INITIAL_FORM = {
 const getItemCodeFromBoxNoUid = (boxNoUid = "") => String(boxNoUid).split("_")[0] || "";
 const normalizeCode = (value = "") => String(value).trim().toUpperCase();
 
+/** Ledger name from list/getById; edit rows may only have from_customer_name */
+const currentCustomerDisplay = (row) =>
+  row?.acc_name ||
+  row?.from_customer_name ||
+  row?.override_customer_name ||
+  (row?.override_cust != null && row?.override_cust !== ""
+    ? `Ledger #${row.override_cust}`
+    : null) ||
+  "Stock";
+
 /** DOM id for scanner — must not clash with Inward modal's `#reader` */
 const STICKER_SCANNER_ELEMENT_ID = "override-sticker-reader";
 
@@ -423,10 +433,6 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
               Packing: {scanRows[0]?.packing_number || "—"}
             </span>
           </label>
-          <p className="text-[9px] text-indigo-700/80 font-medium px-1 leading-snug">
-            <span className="font-black">Scan</span> → QR usually carries <span className="font-mono">box_uid</span> (PK).{" "}
-            <span className="font-black">Type</span> → sticker number <span className="font-mono">box_no_uid</span>. Same QR rules as Inward.
-          </p>
           <div className="flex flex-col sm:flex-row sm:items-end gap-2">
             <button
               type="button"
@@ -488,7 +494,6 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
                 <thead className="sticky top-0 bg-slate-50 text-slate-400 z-10 shadow-sm">
                   <tr className="border-b border-slate-100">
                     <th className="text-left p-3 font-semibold">Sticker (box_no_uid)</th>
-                    <th className="text-left p-3 font-semibold">PK (box_uid)</th>
                     <th className="text-left p-3 font-semibold">Current Customer</th>
                     <th className="text-right p-3 pr-5 font-semibold">Action</th>
                   </tr>
@@ -499,11 +504,10 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
                       <td className="p-3">
                         <span className="font-bold text-slate-700 font-mono text-[10px]">{row.box_no_uid}</span>
                       </td>
-                      <td className="p-3">
-                        <span className="font-mono text-[10px] text-slate-600">{row.box_uid ?? "—"}</span>
-                      </td>
-                      <td className="p-3 text-slate-500 truncate max-w-[120px]">
-                        {row.acc_name || "Stock"}
+                      <td className="p-3 text-slate-700 min-w-0 max-w-[240px]">
+                        <span className="block truncate font-medium" title={currentCustomerDisplay(row)}>
+                          {currentCustomerDisplay(row)}
+                        </span>
                       </td>
                       <td className="p-3 text-right pr-4">
                         <button 
