@@ -236,6 +236,9 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     setForm(prev => ({ ...prev, [key]: value }));
   };
 
+  // Keep active packing resolved before hooks that depend on it.
+  const activeBD = fuidDetails?.items?.[activePackingIdx];
+
   const handleSave = async (statusOverride = null) => {
     if (!form.fuid) return;
     setLoading(true);
@@ -252,8 +255,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
   };
 
   // ── UI Logic ───────────────────────────────────────────────────────────────
-  const activeBD = fuidDetails?.items?.[activePackingIdx];
-  
+
   // Scanned boxes for current packing
   const scannedInActive = useMemo(() => {
     if (!activeBD) return [];
