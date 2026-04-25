@@ -3,11 +3,11 @@
 // const FILE_BASE_URL = "";
 
 // Local
-const API_BASE_URL = "http://localhost:8000/api";
-const FILE_BASE_URL = "http://localhost:8000";
+// const API_BASE_URL = "http://localhost:8000/api";
+// const FILE_BASE_URL = "http://localhost:8000";
 
-// const API_BASE_URL = "https://apiinside.jflindia.com/api";
-// const FILE_BASE_URL = "https://apiinside.jflindia.com";
+const API_BASE_URL = "https://apiinside.jflindia.com/api";
+const FILE_BASE_URL = "https://apiinside.jflindia.com";
 
 const ENDPOINTS = {
   USERS: {
