@@ -10,6 +10,7 @@ import SearchableSelect from "../common/SearchableSelect";
 import Drawer from "@/components/ui/Drawer";
 import { OK_INPUT } from "@/components/common/Constants";
 import { useCanAccess } from "@/hooks/useCanAccess";
+import { detectQrType, parseBoxScanRaw } from "@/helpers/qrScan";
 
 const INITIAL_FORM = {
   to_customer_code: "",
@@ -43,6 +44,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
   const streamRef = useRef(null);
   const scanTimerRef = useRef(null);
   const lastScannedRef = useRef({ value: "", at: 0 });
+  const inFlightScanRef = useRef(new Set());
 
   // Lifecycle: Sync Data on Open/Edit
   useEffect(() => {
@@ -97,28 +99,29 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
   };
 
-  // Scanning Logic
-  const parseScannedValue = (raw) => {
-    const text = String(raw || "").trim();
-    if (!text) return "";
+  const onScanByCode = async (rawCode, source = "manual") => {
+    const qrType = detectQrType(rawCode);
+    if (qrType === "location") {
+      toast.error("This is a Location QR. Scan a box/sticker QR here (same format as Inward).");
+      setScanValue("");
+      return;
+    }
 
-    const uidMatch = text.match(/\b(?:box_uid|box_no_uid|uid|box(?:\s*id)?)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
-    if (uidMatch?.[1]) return uidMatch[1].trim();
+    const code = parseBoxScanRaw(rawCode);
+    if (!code) {
+      toast.error("Invalid sticker QR. Use box_uid / box_no_uid format like other screens.");
+      setScanValue("");
+      return;
+    }
 
-    const idMatch = text.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
-    if (idMatch?.[1]) return idMatch[1].trim();
-
-    return text.split(/\r?\n/)[0].trim();
-  };
-
-  const onScanByCode = async (rawCode) => {
-    const code = parseScannedValue(rawCode);
-    if (!code) return;
-
-    if (scanRows.some((r) => String(r.box_no_uid) === code)) {
+    if (scanRows.some((r) => String(r.box_no_uid).toLowerCase() === code.toLowerCase())) {
       setScanValue("");
       return toast.info("Box already in list");
     }
+
+    const lockKey = `${source}:${code.toLowerCase()}`;
+    if (source === "scanner" && inFlightScanRef.current.has(lockKey)) return;
+    if (source === "scanner") inFlightScanRef.current.add(lockKey);
 
     setLoading(true);
     try {
@@ -151,18 +154,28 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       if (scanRows.length > 0) {
         const first = scanRows[0];
         if (String(found.packing_number) !== String(first.packing_number)) {
-          return toast.warn("Warning: All boxes must have same Packing Number");
+          toast.error(
+            `Same packing only: first sticker is packing #${first.packing_number}. This box is #${found.packing_number}.`
+          );
+          return;
         }
         if (itemCode !== normalizeCode(getItemCodeFromBoxNoUid(first.box_no_uid))) {
-          return toast.warn("Warning: Item Code mismatch");
+          toast.error("Item code must match the first scanned sticker for this request.");
+          return;
         }
       }
 
-      setScanRows((prev) => [...prev, found]);
+      setScanRows((prev) => {
+        if (prev.some((r) => String(r.box_no_uid).toLowerCase() === String(found.box_no_uid).toLowerCase())) {
+          return prev;
+        }
+        return [...prev, found];
+      });
       setScanValue("");
     } catch (err) {
       toast.error("Box lookup failed");
     } finally {
+      if (source === "scanner") inFlightScanRef.current.delete(lockKey);
       setLoading(false);
     }
   };
@@ -197,7 +210,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
             const now = Date.now();
             if (lastScannedRef.current.value === raw && now - lastScannedRef.current.at < 2000) return;
             lastScannedRef.current = { value: raw, at: now };
-            onScanByCode(raw);
+            onScanByCode(raw, "scanner");
           }
         } catch (e) {}
       }, 500);
@@ -318,8 +331,8 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
               <input
                 value={scanValue}
                 onChange={(e) => setScanValue(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && onScanByCode(scanValue)}
-                placeholder="Scan QR or Enter Box UID..."
+                onKeyDown={(e) => e.key === "Enter" && onScanByCode(scanValue, "manual")}
+                placeholder="Box/sticker QR (same as Inward) — Enter to add..."
                 className={`${OK_INPUT} pl-10 h-12 bg-white`}
               />
             </div>
@@ -334,7 +347,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
             </button>
 
             <button 
-              onClick={() => onScanByCode(scanValue)}
+              onClick={() => onScanByCode(scanValue, "manual")}
               disabled={!scanValue || loading}
               className="px-5 h-12 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-black transition-all disabled:bg-slate-300"
             >

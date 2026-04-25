@@ -9,6 +9,7 @@ import { useSelector } from "react-redux";
 import { inventoryInwardService } from "@/services/inventoryInward";
 import { locationService }        from "@/services/location";
 import { boxService }             from "@/services/box";
+import { extractLocationId, detectQrType, extractBoxCode } from "@/helpers/qrScan";
 import Drawer                     from "@/components/ui/Drawer";
 import SearchableSelect           from "../common/SearchableSelect";
 import { ERR_INPUT, OK_INPUT }    from "../common/Constants";
@@ -132,58 +133,6 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   const handleInputChange = (k, value) => {
     setForm((prev) => ({ ...prev, [k]: value }));
     if (errors[k]) setErrors((prev) => ({ ...prev, [k]: "" }));
-  };
-
-  const extractLocationId = (rawValue) => {
-    const normalizedValue = String(rawValue ?? "").trim();
-    if (!normalizedValue) return null;
-
-    // Prevent box QR from being accepted as location.
-    if (/\bbox(?:_no)?\s*uid\b/i.test(normalizedValue)) return null;
-
-    // Preferred location QR format: "location_id:2"
-    const locationIdMatch = normalizedValue.match(/\blocation[_\s]*id\s*[:=-]?\s*(\d+)\b/i);
-    if (locationIdMatch?.[1]) return locationIdMatch[1];
-
-    // Backward compatibility for old labels.
-    const idMatch = normalizedValue.match(/\b(?:id|location\s*id)\s*[:=-]?\s*(\d+)\b/i);
-    if (idMatch?.[1]) return idMatch[1];
-
-    const plainNumeric = normalizedValue.match(/^\d+$/);
-    if (plainNumeric) return plainNumeric[0];
-
-    return normalizedValue;
-  };
-
-  const detectQrType = (rawValue) => {
-    const normalized = String(rawValue ?? "").trim().toLowerCase();
-    if (!normalized) return "unknown";
-    if (/\bbox(?:_no)?\s*uid\b/.test(normalized)) return "box";
-    if (/\blocation[_\s]*id\b/.test(normalized)) return "location";
-    return "unknown";
-  };
-
-  const extractBoxCode = (rawValue) => {
-    const normalizedValue = String(rawValue ?? "").trim();
-    if (!normalizedValue) return "";
-
-    if (normalizedValue.startsWith("{") && normalizedValue.endsWith("}")) {
-      try {
-        const parsed = JSON.parse(normalizedValue);
-        if (parsed?.box_uid) return String(parsed.box_uid).trim();
-        if (parsed?.box_no_uid) return String(parsed.box_no_uid).trim();
-      } catch {
-        // Ignore JSON parse errors and continue fallback parsing.
-      }
-    }
-
-    const uidMatch = normalizedValue.match(/\b(?:box_uid|box_no_uid|uid|box(?:\s*id)?)\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
-    if (uidMatch?.[1]) return uidMatch[1].trim();
-
-    const idMatch = normalizedValue.match(/\bid\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i);
-    if (idMatch?.[1]) return idMatch[1].trim();
-
-    return normalizedValue.split(/\r?\n/)[0].trim();
   };
 
   const resolveBoxNoUid = async (rawValue) => {
