@@ -111,6 +111,18 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     }
   }, [isEdit, isApprove]);
 
+  const fetchApprovedForwardingNotes = useCallback(
+    (params = {}) =>
+      forwardingNoteService.getAll({
+        ...params,
+        filters: {
+          ...(params.filters || {}),
+          approved: true
+        }
+      }),
+    []
+  );
+
   const closeScanner = () => {
     stopScannerSafely();
     setIsScannerOpen(false);
@@ -444,7 +456,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
         {/* FUID Selection */}
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <SearchableSelect label="Forwarding Note (FUID)" value={form.fuid} onChange={(id) => handleChange("fuid", id)} fetchService={forwardingNoteService.getAll} getByIdService={forwardingNoteService.getById} dataKey="fuid" labelKey="fuid" subLabelKey="acc_name" error={errors.fuid} required disabled={isConfirmed && !isEdit} />
+            <SearchableSelect label="Forwarding Note (FUID)" value={form.fuid} onChange={(id) => handleChange("fuid", id)} fetchService={fetchApprovedForwardingNotes} getByIdService={forwardingNoteService.getById} dataKey="fuid" labelKey="fuid" subLabelKey="acc_name" error={errors.fuid} required disabled={isConfirmed && !isEdit} />
           </div>
           {!isConfirmed && (
             <button
