@@ -14,6 +14,7 @@ import SearchableSelect from "../common/SearchableSelect";
 import { useCanAccess } from "@/hooks/useCanAccess";
 import RemarksTextarea from "../common/RemarksTextarea";
 import { selectHasPermission } from "@/features/authSlice";
+import { detectQrType, parseBoxScanRaw } from "@/helpers/qrScan";
 
 const INITIAL_FORM = {
   fuid: "",
@@ -41,7 +42,10 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
   const [scannedBoxIds, setScannedBoxIds] = useState(new Set());
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const scannerRef = useRef(null);
-  const [manualBoxId, setManualBoxId] = useState("");
+  const [scanDisplayValue, setScanDisplayValue] = useState("");
+  const scanBufferRef = useRef("");
+  const scanTimerRef = useRef(null);
+  const lastScanTsRef = useRef(0);
   const [expandedLocations, setExpandedLocations] = useState(new Set());
 
   const toggleLocation = (locId) => {
@@ -89,11 +93,11 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
         setForm({ fuid: initialFuid, remarks: editData.remarks || "", approved: editData?.approved ?? false });
         if (initialFuid) { fetchFuidInfo(initialFuid); setIsConfirmed(true); }
       } else {
-        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set());
+        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setScanDisplayValue("");
       }
     } else {
       timeoutId = setTimeout(() => {
-        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setErrors({});
+        setForm(INITIAL_FORM); setFuidDetails(null); setIsConfirmed(false); setScannedBoxIds(new Set()); setScanDisplayValue(""); setErrors({});
       }, 300);
     }
     return () => clearTimeout(timeoutId);
@@ -110,8 +114,14 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     if (key === "fuid") { setIsConfirmed(false); if (value) fetchFuidInfo(value); else setFuidDetails(null); }
   };
 
-  const tryAddBox = (boxId) => {
-    const bId = boxId.trim();
+  const tryAddBox = (rawScanValue) => {
+    const qrType = detectQrType(rawScanValue);
+    if (qrType === "location") {
+      toast.error("Location QR yahan valid nahi hai. Box sticker scan karein.");
+      return;
+    }
+
+    const bId = parseBoxScanRaw(rawScanValue)?.trim();
     if (!bId) return;
 
     // 1. Find box data and which packing it belongs to
@@ -120,7 +130,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     fuidDetails?.items?.forEach(item => {
       item.locations?.forEach(loc => {
         loc.boxes?.forEach(box => { 
-          if (box.box_no_uid === bId) {
+          if (String(box.box_no_uid).toLowerCase() === String(bId).toLowerCase()) {
             boxData = box; 
             targetPacking = item;
           }
@@ -133,7 +143,9 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
       return; 
     }
 
-    if (scannedBoxIds.has(bId)) { 
+    const canonicalBoxId = boxData.box_no_uid;
+
+    if (scannedBoxIds.has(canonicalBoxId)) { 
       toast.info(`Box already scanned.`); 
       return; 
     }
@@ -158,9 +170,67 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     }
 
     // 3. Add to scanned list
-    setScannedBoxIds(prev => new Set([...prev, bId]));
-    toast.success(`Added: ${bId}`);
+    setScannedBoxIds(prev => new Set([...prev, canonicalBoxId]));
+    setScanDisplayValue(canonicalBoxId);
+    toast.success(`Added: ${canonicalBoxId}`);
   };
+
+  // Scanner-gun flow: receives keys globally and adds on Enter.
+  useEffect(() => {
+    if (!open || !isConfirmed || !activeBD) return undefined;
+
+    const clearScanBuffer = () => {
+      scanBufferRef.current = "";
+      if (scanTimerRef.current) {
+        clearTimeout(scanTimerRef.current);
+        scanTimerRef.current = null;
+      }
+    };
+
+    const handleGlobalScan = (e) => {
+      const targetTag = String(e.target?.tagName || "").toLowerCase();
+      const isEditable =
+        targetTag === "textarea" ||
+        targetTag === "select" ||
+        (targetTag === "input" && e.target?.type !== "checkbox");
+
+      // Let user type normally inside form fields like remarks/select search.
+      if (isEditable) return;
+
+      if (e.key === "Enter") {
+        const code = scanBufferRef.current.trim();
+        clearScanBuffer();
+        if (code) {
+          tryAddBox(code);
+        }
+        return;
+      }
+
+      if (e.key.length === 1) {
+        const now = Date.now();
+        const gap = now - lastScanTsRef.current;
+        lastScanTsRef.current = now;
+
+        // Fresh scan burst or reset when typing pauses.
+        if (gap > 150) {
+          scanBufferRef.current = "";
+        }
+        scanBufferRef.current += e.key;
+
+        if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+        scanTimerRef.current = setTimeout(() => {
+          scanBufferRef.current = "";
+          scanTimerRef.current = null;
+        }, 300);
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalScan);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalScan);
+      clearScanBuffer();
+    };
+  }, [open, isConfirmed, activeBD, tryAddBox]);
 
   const handleInputChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -312,21 +382,20 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
                           </div>
                           <div className="p-2 flex flex-wrap gap-1.5">
                             {loc.boxes?.map((box, bidx) => (
-                              <button 
-                                key={bidx} 
-                                onClick={() => tryAddBox(box.box_no_uid)} 
-                                disabled={scannedBoxIds.has(box.box_no_uid)} 
+                              <div
+                                key={bidx}
                                 className={`px-2 py-1 rounded text-[9px] font-mono font-bold border transition-all flex items-center gap-1 ${
-                                  scannedBoxIds.has(box.box_no_uid) 
-                                  ? "bg-slate-50 text-slate-200 border-slate-100 cursor-not-allowed" 
-                                  : box.is_loose 
-                                    ? "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"
-                                    : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                                  scannedBoxIds.has(box.box_no_uid)
+                                    ? "bg-slate-50 text-slate-300 border-slate-100 opacity-70"
+                                    : box.is_loose
+                                      ? "bg-amber-50 text-amber-600 border-amber-200"
+                                      : "bg-white text-slate-600 border-slate-200"
                                 }`}
+                                title={scannedBoxIds.has(box.box_no_uid) ? "Already scanned" : "Warehouse info only"}
                               >
                                 {box.box_no_uid}
                                 {box.is_loose && <span className="text-[7px] bg-amber-200 px-1 rounded-sm">L</span>}
-                              </button>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -356,27 +425,48 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 animate-pulse" />
-                      <input 
-                        type="text" 
-                        value={manualBoxId} 
-                        onChange={(e) => setManualBoxId(e.target.value)} 
-                        onKeyDown={(e) => { 
-                          if (e.key === 'Enter') { 
-                            e.preventDefault(); 
-                            tryAddBox(manualBoxId); 
-                            setManualBoxId(""); 
-                          } 
-                        }} 
-                        placeholder="Scan or Type Box UID to Add..." 
-                        className="w-full pl-10 pr-3 py-3 text-xs font-mono border-2 border-indigo-100 rounded-xl focus:border-indigo-500 outline-none shadow-inner bg-white" 
-                        autoFocus
-                      />
-                    </div>
-                    <button onClick={() => { tryAddBox(manualBoxId); setManualBoxId(""); }} className="px-6 bg-indigo-600 text-white rounded-xl text-[11px] font-bold uppercase shadow-md active:scale-95 transition-all">Add</button>
+                  <div className="relative">
+                    <ScanLine size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 animate-pulse" />
+                    <input
+                      type="text"
+                      value={scanDisplayValue}
+                      readOnly
+                      placeholder="Scan box sticker... auto add on scan"
+                      className="w-full pl-10 pr-3 py-3 text-xs font-mono border-2 border-indigo-100 rounded-xl outline-none shadow-inner bg-white text-slate-700"
+                    />
+                    <p className="mt-1 text-[9px] text-indigo-500 font-bold uppercase tracking-wide">
+                      Scan only mode active - warehouse list is view-only
+                    </p>
                   </div>
+
+                  {/*
+                    Manual testing block (keep commented):
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={manualBoxId}
+                        onChange={(e) => setManualBoxId(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            tryAddBox(manualBoxId);
+                            setManualBoxId("");
+                          }
+                        }}
+                        placeholder="Type box_no_uid for testing..."
+                        className="w-full pl-3 pr-3 py-3 text-xs font-mono border-2 border-indigo-100 rounded-xl"
+                      />
+                      <button
+                        onClick={() => {
+                          tryAddBox(manualBoxId);
+                          setManualBoxId("");
+                        }}
+                        className="px-6 bg-indigo-600 text-white rounded-xl text-[11px] font-bold uppercase"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  */}
 
                   {/* SCANNED LIST - Optimized Grid */}
                   <div className="flex-1 min-h-0 bg-white/60 rounded-xl border border-indigo-50 overflow-hidden flex flex-col">
