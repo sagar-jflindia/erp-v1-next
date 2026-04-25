@@ -158,10 +158,13 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
     // 1. Find box data and which packing it belongs to
     let boxData = null;
     let targetPacking = null;
+    const normalizedScan = String(bId).trim().toLowerCase();
     fuidDetails?.items?.forEach(item => {
       item.locations?.forEach(loc => {
         loc.boxes?.forEach(box => { 
-          if (String(box.box_no_uid).toLowerCase() === String(bId).toLowerCase()) {
+          const byBoxNoUid = String(box.box_no_uid || "").trim().toLowerCase() === normalizedScan;
+          const byBoxUid = String(box.box_uid || "").trim() === String(bId).trim();
+          if (byBoxNoUid || byBoxUid) {
             boxData = box; 
             targetPacking = item;
           }
