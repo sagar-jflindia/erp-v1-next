@@ -24,7 +24,7 @@ const MSG = {
   LOCATION_EMPTY_STATE_SUBTITLE:   "Search or scan a location to start adding boxes.",
   BOX_DUPLICATE_SAME:              "This box is already added to this location.",
   BOX_DUPLICATE_OTHER:             (locName) => `This box is already assigned to "${locName}".`,
-  BOX_PLACEHOLDER:                 "Scan Box UID or type Box UID...",
+  BOX_PLACEHOLDER:                 "Scan Box UID or type Box UID, then press Enter...",
   INWARD_CREATED:                  "Inward entry recorded successfully.",
   INWARD_UPDATED:                  "Inward entry updated successfully.",
   INWARD_FAILED:                   "Operation failed. Please try again.",
@@ -58,6 +58,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
   
   const scannerRef = useRef(null);
   const lastScanRef = useRef({ key: "", at: 0, mode: "" });
+  const inFlightScanRef = useRef(new Set());
 
   // Permissions
   const canApprove = useSelector(selectHasPermission("inventory_inwards", "authorize"));
@@ -152,6 +153,14 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     if (plainNumeric) return plainNumeric[0];
 
     return normalizedValue;
+  };
+
+  const detectQrType = (rawValue) => {
+    const normalized = String(rawValue ?? "").trim().toLowerCase();
+    if (!normalized) return "unknown";
+    if (/\bbox(?:_no)?\s*uid\b/.test(normalized)) return "box";
+    if (/\blocation[_\s]*id\b/.test(normalized)) return "location";
+    return "unknown";
   };
 
   const extractBoxCode = (rawValue) => {
@@ -264,7 +273,22 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
     setLocHasError((prev) => prev.filter((_, i) => i !== li));
   };
 
-  const tryAddBox = async (li, val) => {
+  const tryAddBox = async (li, val, source = "manual") => {
+    const detectedType = detectQrType(val);
+    if (detectedType === "location") {
+      toast.error("This is a Location QR. Please scan a Box QR in Step 2.");
+      return;
+    }
+
+    const scanLockKey = `${li}:${String(val ?? "").trim().toLowerCase()}`;
+    if (source === "scanner" && inFlightScanRef.current.has(scanLockKey)) {
+      return;
+    }
+    if (source === "scanner") {
+      inFlightScanRef.current.add(scanLockKey);
+    }
+
+    try {
     const resolvedBox = await resolveBoxNoUid(val);
     const v = resolvedBox?.boxNoUid || "";
     if (!v) {
@@ -288,13 +312,22 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
       return;
     }
 
-    setLocations((prev) =>
-      prev.map((loc, i) =>
+    setLocations((prev) => {
+      if (!prev[li]) return prev;
+      if (prev[li].boxes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+        return prev;
+      }
+      return prev.map((loc, i) =>
         i === li ? { ...loc, boxes: [...loc.boxes, v] } : loc
-      )
-    );
+      );
+    });
     setLocHasError((prev) => prev.map((e, i) => (i === li ? false : e)));
     toast.success(`Added: ${v}`);
+    } finally {
+      if (source === "scanner") {
+        inFlightScanRef.current.delete(scanLockKey);
+      }
+    }
   };
 
   const handleRemoveBox = (li, bi) => {
@@ -372,6 +405,11 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
         config,
         (decodedText) => {
           if (locIdx === null) {
+            const qrType = detectQrType(decodedText);
+            if (qrType === "box") {
+              toast.error("This is a Box QR. Please scan a Location QR in Step 1.");
+              return;
+            }
             const locationId = extractLocationId(decodedText);
             const now = Date.now();
             const scanKey = `loc:${locationId || ""}`;
@@ -410,8 +448,15 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             if (allBoxesFlat.some(({ box }) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase())) {
               return;
             }
+            const alreadyInCurrentLocation = locations[locIdx]?.boxes?.some(
+              (box) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase()
+            );
+            if (alreadyInCurrentLocation) {
+              return;
+            }
+
             setValidatingBox(true);
-            tryAddBox(locIdx, decodedText)
+            tryAddBox(locIdx, decodedText, "scanner")
               .then(() => {})
               .finally(() => setValidatingBox(false));
           }
@@ -426,6 +471,11 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
               config,
               (decodedText) => {
                 if (locIdx === null) {
+                  const qrType = detectQrType(decodedText);
+                  if (qrType === "box") {
+                    toast.error("This is a Box QR. Please scan a Location QR in Step 1.");
+                    return;
+                  }
                   const locationId = extractLocationId(decodedText);
                   const now = Date.now();
                   const scanKey = `loc:${locationId || ""}`;
@@ -464,8 +514,15 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
                   if (allBoxesFlat.some(({ box }) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase())) {
                     return;
                   }
+                  const alreadyInCurrentLocation = locations[locIdx]?.boxes?.some(
+                    (box) => String(box).toLowerCase() === String(rawBoxCode).toLowerCase()
+                  );
+                  if (alreadyInCurrentLocation) {
+                    return;
+                  }
+
                   setValidatingBox(true);
-                  tryAddBox(locIdx, decodedText)
+                  tryAddBox(locIdx, decodedText, "scanner")
                     .then(() => {})
                     .finally(() => setValidatingBox(false));
                 }
@@ -583,16 +640,16 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
           <label className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-2">
             <MapPin size={14} /> Step 1: Select Location
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-[auto,1fr,auto] gap-2 items-end">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2">
             <button
               onClick={() => startCameraScanner(null)}
-              className="h-[38px] w-full md:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
+              className="h-[40px] w-full sm:w-auto sm:shrink-0 px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
               title="Scan Location QR"
             >
               <QrCode size={16} />
               <span className="text-[10px] font-black uppercase">Scan</span>
             </button>
-            <div className="w-full text-[11px] min-w-0">
+            <div className="w-full sm:flex-1 text-[11px] min-w-0">
               <SearchableSelect
                 placeholder={MSG.LOCATION_SEARCH_PLACEHOLDER}
                 value={selectedLocId}
@@ -608,7 +665,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             <button
               onClick={handleAddLocation}
               disabled={scanStatus !== "matched"}
-              className="h-[38px] w-full md:w-auto px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+              className="h-[40px] w-full sm:w-auto sm:shrink-0 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <Plus size={14} /> Add
             </button>
@@ -672,16 +729,16 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
 
                   <div className="p-3 space-y-3">
                     {/* Box Input Area */}
-                    <div className="grid grid-cols-1 sm:grid-cols-[auto,1fr] gap-2">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => startCameraScanner(li)}
-                        className="h-[38px] w-full sm:w-auto px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
+                        className="h-[38px] shrink-0 px-3 bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2"
                         title="Scan Box QR"
                       >
                         <Camera size={16} />
                         <span className="text-[10px] font-black uppercase">Scan</span>
                       </button>
-                      <div className="relative flex-1">
+                      <div className="relative flex-1 min-w-0">
                         <ScanLine size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" />
                         <input
                           placeholder={MSG.BOX_PLACEHOLDER}
