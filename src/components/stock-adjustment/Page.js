@@ -96,7 +96,7 @@ export default function StockAdjustmentPage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load data");
+      toast.error(err?.message || "Failed to load data");
     } finally {
       setLoading(false);
     }

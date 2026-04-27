@@ -12,17 +12,19 @@ import { useCanAccess } from "@/hooks/useCanAccess";
 import { PERMS } from "@/components/common/Constants";
 
 import DataTable from "@/components/ui/DataTable";
+import EmptyState from "@/components/common-table/EmptyState";
 import DateRangeFilter from "../common/DateRangeFilter";
 import ViewToggle from "@/components/ui/ViewToggle";
 import VideoModal from "@/components/training/VideoModal";
 
 // --- PERMISSION CELL (SHARP & MINIMAL) ---
-function PermissionCell({ video, perm, onClick, isTable = false }) {
+function PermissionCell({ video, perm, onClick, disabled = false, isTable = false }) {
   return (
     <div
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       className={`
-        flex flex-col items-center justify-center cursor-pointer transition-all duration-200 border
+        flex flex-col items-center justify-center transition-all duration-200 border
+        ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
         ${isTable ? "h-10 w-16 rounded-none" : "h-12 w-full rounded-none"}
         ${video 
           ? "bg-emerald-50 border-emerald-200 text-emerald-600 hover:border-emerald-400" 
@@ -37,7 +39,7 @@ function PermissionCell({ video, perm, onClick, isTable = false }) {
 }
 
 // --- MODULE CARD (SHARP THEME) ---
-function ModuleCard({ mod, perms, getVideo, onClick }) {
+function ModuleCard({ mod, perms, getVideo, onClick, disabledActions }) {
   return (
     <div className="bg-white border border-slate-300 rounded-none p-4 hover:border-slate-400 transition-all flex flex-col h-full shadow-sm">
       <div className="flex items-center justify-between mb-4">
@@ -53,7 +55,13 @@ function ModuleCard({ mod, perms, getVideo, onClick }) {
       </div>
       <div className="mt-auto grid grid-cols-3 gap-2">
         {perms.map(p => (
-          <PermissionCell key={p} perm={p} video={getVideo(mod.id, p)} onClick={() => onClick(mod, p)} />
+          <PermissionCell
+            key={p}
+            perm={p}
+            video={getVideo(mod.id, p)}
+            disabled={disabledActions}
+            onClick={() => onClick(mod, p)}
+          />
         ))}
       </div>
     </div>
@@ -63,6 +71,18 @@ function ModuleCard({ mod, perms, getVideo, onClick }) {
 export default function TrainingPage() {
   const canAccess = useCanAccess();
   const viewAccess = useMemo(() => canAccess("training_videos", "view"), [canAccess]);
+  const canAddTraining = useMemo(() => {
+    const access = canAccess("training_videos", "add");
+    return typeof access === "object" ? access.allowed : !!access;
+  }, [canAccess]);
+  const canEditTraining = useMemo(() => {
+    const access = canAccess("training_videos", "edit");
+    return typeof access === "object" ? access.allowed : !!access;
+  }, [canAccess]);
+  const canDeleteTraining = useMemo(() => {
+    const access = canAccess("training_videos", "delete");
+    return typeof access === "object" ? access.allowed : !!access;
+  }, [canAccess]);
 
   const [modules, setModules] = useState([]);
   const [videos, setVideos] = useState([]);
@@ -98,10 +118,12 @@ export default function TrainingPage() {
   
   const [tempSearch, setTempSearch] = useState("");
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [blockedMessage, setBlockedMessage] = useState("");
 
   const fetchData = useCallback(async (isLoadMore = false) => {
     if (!isLoadMore) setLoading(true);
     try {
+      setBlockedMessage("");
       const currentPage = isLoadMore ? params.page + 1 : 1;
       const apiParams = { 
         page: currentPage, 
@@ -129,7 +151,19 @@ export default function TrainingPage() {
       setTotalItems(modRes.data?.total ?? modRes.total ?? (Array.isArray(list) ? list.length : 0));
       setVideos(vidRes.data || []);
     } catch (err) {
-      toast.error("Failed to load training data");
+      const msg = err?.message || "";
+      const denied = err?.status === 403 && (
+        msg.includes("Access Denied — module") ||
+        msg.toLowerCase().includes("deactivated")
+      );
+      if (denied) {
+        setModules([]);
+        setVideos([]);
+        setTotalItems(0);
+        setBlockedMessage(msg);
+      } else {
+        toast.error(err?.message || "Failed to load training data");
+      }
     } finally {
       setLoading(false);
     }
@@ -149,9 +183,18 @@ export default function TrainingPage() {
 
   const handleBoxClick = (mod, perm) => {
     const existing = getVideo(mod.id, perm);
+    if (existing && !canEditTraining) {
+      toast.error("You do not have permission to edit training videos.");
+      return;
+    }
+    if (!existing && !canAddTraining) {
+      toast.error("You do not have permission to add training videos.");
+      return;
+    }
     setSelectedSlot({ 
       modId: mod.id, perm, modLabel: mod.label, 
-      isEdit: !!existing, id: existing?.id, existingData: existing 
+      isEdit: !!existing, id: existing?.id, existingData: existing,
+      canAdd: canAddTraining, canEdit: canEditTraining, canDelete: canDeleteTraining
     });
   };
 
@@ -169,7 +212,13 @@ export default function TrainingPage() {
       p.toUpperCase(), null, 
       (v, row) => (
         <div className="flex justify-center py-1">
-          <PermissionCell isTable={true} perm={p} video={getVideo(row.id, p)} onClick={() => handleBoxClick(row, p)} />
+          <PermissionCell
+            isTable={true}
+            perm={p}
+            video={getVideo(row.id, p)}
+            disabled={!canAddTraining && !canEditTraining}
+            onClick={() => handleBoxClick(row, p)}
+          />
         </div>
       ),
       { align: 'center' }
@@ -215,6 +264,8 @@ export default function TrainingPage() {
               sortKey={params.sortKey} sortDir={params.sortDir} showSelection={false}
               onSort={(key) => setParams(p => ({ ...p, sortKey: key, sortDir: p.sortKey === key && p.sortDir === "asc" ? "desc" : "asc", page: 1 }))}
               emptyIcon={Video}
+              emptyMessage={blockedMessage || "No training data found"}
+              emptySubMessage={blockedMessage ? "No records are available for the current selection." : undefined}
               onLoadMore={handleLoadMore}
               hasMore={modules.length < totalItems}
               totalItems={totalItems}
@@ -225,6 +276,13 @@ export default function TrainingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {[...Array(8)].map((_, i) => <div key={i} className="h-44 bg-slate-50 animate-pulse rounded-none border border-slate-200" />)}
                 </div>
+              ) : modules.length === 0 ? (
+                <EmptyState
+                  isTable={false}
+                  icon={Video}
+                  message={blockedMessage || "No training data found"}
+                  subMessage={blockedMessage ? "No records are available for the current selection." : undefined}
+                />
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -240,7 +298,13 @@ export default function TrainingPage() {
                           });
                           if (node) observer.observe(node);
                         }) : null}>
-                          <ModuleCard mod={mod} perms={PERMS} getVideo={getVideo} onClick={handleBoxClick} />
+                          <ModuleCard
+                            mod={mod}
+                            perms={PERMS}
+                            getVideo={getVideo}
+                            onClick={handleBoxClick}
+                            disabledActions={!canAddTraining && !canEditTraining}
+                          />
                         </div>
                       );
                     })}

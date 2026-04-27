@@ -59,10 +59,12 @@ export default function ModulesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editModule, setEditModule] = useState(null);
   const [deleteModule, setDeleteModule] = useState(null);
+  const [blockedMessage, setBlockedMessage] = useState("");
 
   const fetchModules = useCallback(async (isLoadMore = false) => {
     if (!isLoadMore) setLoading(true);
     try {
+      setBlockedMessage("");
       const currentPage = isLoadMore ? params.page + 1 : 1;
       const apiParams = {
         page: currentPage,
@@ -89,7 +91,18 @@ export default function ModulesPage() {
       }
       setTotalItems(body?.total ?? (Array.isArray(list) ? list.length : 0));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load modules");
+      const msg = err?.message || "";
+      const denied = err?.status === 403 && (
+        msg.includes("Access Denied — module") ||
+        msg.toLowerCase().includes("deactivated")
+      );
+      if (denied) {
+        setModules([]);
+        setTotalItems(0);
+        setBlockedMessage(msg);
+      } else {
+        toast.error(err?.message || "Failed to load modules");
+      }
     } finally {
       setLoading(false);
     }
@@ -111,7 +124,7 @@ export default function ModulesPage() {
       setModules((prev) => prev.map((m) => m.id === id ? { ...m, is_active: response.data.is_active } : m));
       toast.success("Status updated");
     } catch (err) {
-      toast.error("Failed to update status");
+      toast.error(err?.message || "Failed to update status");
     }
   };
 
@@ -216,8 +229,11 @@ export default function ModulesPage() {
         <div className="flex-1 min-h-0 relative bg-white flex flex-col overflow-hidden">
           <DataTable
             headers={HEADERS} getRowId={(row) => row.id} data={modules} loading={loading}
-            viewMode={viewMode} allowCopy={true} showSelection={false} skeletonCount={params.pageSize}
-            emptyIcon={Box} sortKey={params.sortKey} sortDir={params.sortDir}
+            viewMode={viewMode} allowCopy={true} showSelection={true} skeletonCount={params.pageSize}
+            emptyIcon={Box}
+            emptyMessage={blockedMessage || "No modules found"}
+            emptySubMessage={blockedMessage ? "No records are available for the current selection." : undefined}
+            sortKey={params.sortKey} sortDir={params.sortDir}
             onSort={(key) => setParams(p => ({ ...p, sortKey: key, sortDir: p.sortKey === key && p.sortDir === "asc" ? "desc" : "asc", page: 1 }))}
             selectedId={selected} onSelect={setSelected}
             onLoadMore={handleLoadMore}

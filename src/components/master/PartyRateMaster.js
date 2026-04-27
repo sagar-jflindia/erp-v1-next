@@ -10,6 +10,13 @@ import DataTable from "../ui/DataTable";
 import ViewToggle from "../ui/ViewToggle";
 import ActionButton from "../ui/ActionButton";
 import GlobalDetailModal from "../common/GlobalDetailModal";
+import {
+  MasterDetailBody,
+  MasterDetailHero,
+  MasterDetailSection,
+  MasterDetailProse,
+  MasterDetailStatusRow,
+} from "./MasterDetailLayout";
 import DateRangeFilter from "../common/DateRangeFilter";
 
 export default function PartyRateMasterPage() {
@@ -60,7 +67,7 @@ export default function PartyRateMasterPage() {
       }
       setTotalItems(body.total ?? list.length);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load party rates");
+      toast.error(err?.message || "Failed to load party rates");
     } finally {
       setLoading(false);
     }
@@ -153,11 +160,11 @@ export default function PartyRateMasterPage() {
             
             {/* Action Group */}
             <div className="flex items-center gap-2">
-              <ActionButton 
+              {/* <ActionButton 
                 module="party_rate_master" action="add" label="Add Rate" icon={Plus} 
                 onClick={() => toast.info("Add Modal coming soon")}
                 className="rounded-none h-9 text-[11px] font-bold uppercase tracking-wider px-4 shrink-0 shadow-none"
-              />
+              /> */}
 
               <ActionButton 
                 variant="outline" label="View Details" icon={Eye}
@@ -211,7 +218,7 @@ export default function PartyRateMasterPage() {
           <DataTable
             headers={HEADERS} data={items} loading={loading} viewMode={viewMode}
             onSort={toggleSort} sortKey={params.sortKey} sortDir={params.sortDir}
-            showSelection={false} allowCopy={true} 
+            showSelection={true} allowCopy={true} 
             getRowId={(row) => row.row_id}
             selectedId={selected} onSelect={setSelected}
             emptyIcon={IndianRupee}
@@ -247,38 +254,42 @@ export default function PartyRateMasterPage() {
         title="Rate Master Details"
         icon={IndianRupee}
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3">
-            <div className="bg-indigo-50 p-3 border border-indigo-100">
-              <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Customer Details</p>
-              <p className="text-sm font-bold text-indigo-700 uppercase">{selectedRecord?.acc_name}</p>
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Item Details</p>
-            <p className="text-sm font-bold text-slate-700 uppercase">{selectedRecord?.item_code}</p>
-            <p className="text-sm font-bold text-slate-500 uppercase">{selectedRecord?.itemdesc}</p>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-3 py-2 bg-white border border-slate-200">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Approval Status</span>
-              <span className={`px-2 py-0.5 text-[10px] font-bold border uppercase tracking-tighter ${
-                selectedRecord?.itapv === 'Approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'
-              }`}>
-                {selectedRecord?.itapv}
+        {selectedRecord && (
+          <MasterDetailBody>
+            <MasterDetailHero
+              eyebrow="Party rate"
+              icon={IndianRupee}
+              title={selectedRecord.acc_name}
+              badge={selectedRecord.acc_code != null ? `Party code: ${selectedRecord.acc_code}` : null}
+            />
+            <MasterDetailSection label="Item code & id" tone="white">
+              <span>
+                {selectedRecord.item_code || "—"} · {selectedRecord.itemdcode ?? "—"}
               </span>
-            </div>
-            
-            <div className="p-3 bg-slate-50 border border-slate-200">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Narration / Remarks</p>
-              <p className="text-xs text-slate-600 italic leading-relaxed uppercase">
-                {selectedRecord?.narr1 || "No remarks available for this record."}
-              </p>
-            </div>
-          </div>
-        </div>
+            </MasterDetailSection>
+            {selectedRecord.itemdesc ? (
+              <MasterDetailProse label="Item description" tone="slate">
+                {selectedRecord.itemdesc}
+              </MasterDetailProse>
+            ) : null}
+            <MasterDetailStatusRow label="Approval status">
+              <span
+                className={`px-2 py-0.5 text-[10px] font-bold border uppercase tracking-tighter ${
+                  selectedRecord.itapv === "Approved"
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                    : "bg-amber-50 text-amber-600 border-amber-200"
+                }`}
+              >
+                {selectedRecord.itapv ?? "—"}
+              </span>
+            </MasterDetailStatusRow>
+            <MasterDetailProse label="Narration / remarks" tone="slate">
+              {selectedRecord.narr1?.trim()
+                ? selectedRecord.narr1
+                : "No remarks available for this record."}
+            </MasterDetailProse>
+          </MasterDetailBody>
+        )}
       </GlobalDetailModal>
     </div>
   );

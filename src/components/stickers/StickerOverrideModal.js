@@ -340,7 +340,7 @@ export default function OverrideRequestDrawer({ open, onClose, onSuccess, editDa
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || "Operation failed");
+      toast.error(err?.message || "Operation failed");
     } finally {
       setLoading(false);
     }

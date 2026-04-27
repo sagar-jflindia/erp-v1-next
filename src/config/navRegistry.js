@@ -37,5 +37,5 @@ export const NAV_REGISTRY = [
   { id: "store-outward", name: "Store Outward Entry", icon: <Truck size={16} />, href: ROUTES.OUT_ENTRY, module: "out_entry" },
   { id: "stock-adjustment", name: "Stock Adjustment", icon: <Scale size={16} />, href: ROUTES.STOCK_ADJUSTMENT, module: "stock_adjustment" },
   { id: "inventory-report", name: "Inventory Reports", icon: <BarChart3 size={16} />, href: ROUTES.ANALYTICS, module: "inventory_report" },
-  { id: "logs", name: "Activity Logs", icon: <Database size={16} />, href: ROUTES.LOGS, module: "logs" },
+  { id: "logs", name: "Activity Logs", icon: <Database size={16} />, href: ROUTES.LOGS, module: "activity_logs" },
 ];

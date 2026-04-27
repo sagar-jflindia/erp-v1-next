@@ -94,7 +94,7 @@ export default function InwardPage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load inwards");
+      toast.error(err?.message || "Failed to load inwards");
     } finally {
       setLoading(false);
     }

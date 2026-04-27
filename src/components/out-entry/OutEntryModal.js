@@ -155,7 +155,7 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
       setIsConfirmed(true);
       toast.success("Forwarding note locked for Out Entry processing.");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Unable to lock forwarding note for out entry.");
+      toast.error(err?.message || "Unable to lock forwarding note for out entry.");
     } finally {
       setLoading(false);
     }
@@ -352,7 +352,11 @@ export default function OutEntryModal({ open, onClose, onSuccess, editData, mode
       const res = await request;
       toast.success(res?.message || "Saved");
       onSuccess(); onClose();
-    } catch (err) { toast.error(err?.response?.data?.message || "Failed"); } finally { setLoading(false); }
+    } catch (err) { 
+      toast.error(err?.message || "Failed");
+    } finally { 
+      setLoading(false);
+    }
   };
 
   // ── UI Logic ───────────────────────────────────────────────────────────────

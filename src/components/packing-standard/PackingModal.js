@@ -112,7 +112,7 @@ export default function PackingModal({ open, onClose, onSuccess, editData, mode 
       onClose();
 
     } catch (err) {
-      toast.error( err?.response?.data?.message || err?.message || "Operation failed" );
+      toast.error( err?.message || err?.message || "Operation failed" );
     } finally {
       setLoading(false);
     }

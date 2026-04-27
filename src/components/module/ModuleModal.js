@@ -61,7 +61,7 @@ export default function ModuleModal({ open, onClose, onSuccess, editData }) {
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to save module");
+      toast.error(err?.message || "Failed to save module");
     } finally {
       setLoading(false);
     }

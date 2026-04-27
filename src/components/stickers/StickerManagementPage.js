@@ -84,7 +84,7 @@ export default function StickerManagementPage() {
       }
       setTotalItems(res?.total ?? (Array.isArray(list) ? list.length : 0));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load sticker data");
+      toast.error(err?.message || "Failed to load sticker data");
     } finally {
       setLoading(false);
     }

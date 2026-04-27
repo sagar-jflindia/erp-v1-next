@@ -19,7 +19,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, collapsed, toggle
   };
 
   const getAccess = (module) => {
-    const access = canAccess(module);
+    // Sidebar visibility should follow user permission.
+    // Deactivated modules are still listed; page shows deactivated message.
+    const access = canAccess(module, "view", { ignoreModuleStatus: true });
     if (!access) return false;
     return typeof access === 'object' ? access.allowed : access;
   };

@@ -85,7 +85,7 @@ export default function LogsPage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load activity logs");
+      toast.error(err?.message || "Failed to load activity logs");
     } finally {
       setLoading(false);
     }

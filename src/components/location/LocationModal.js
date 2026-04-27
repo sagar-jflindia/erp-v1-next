@@ -119,7 +119,7 @@ export default function LocationModal({ open, onClose, onSuccess, editData, mode
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Operation failed");
+      toast.error(err?.message || "Operation failed");
     } finally {
       setLoading(false);
     }

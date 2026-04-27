@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCanAccess } from "@/hooks/useCanAccess";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { NAV_REGISTRY } from "@/config/navRegistry";
 import { useAppLogout } from "@/hooks/useLogout";
 import { THEME_CONFIG } from "@/config/theme";
@@ -15,20 +15,25 @@ export default function PermissionGuard({ children }) {
   const [authorized, setAuthorized] = useState(false);
   const [noAccessAtAll, setNoAccessAtAll] = useState(false);
 
+  const hasPermissionOnly = useCallback((module) => {
+    const access = canAccess(module, "view", { ignoreModuleStatus: true });
+    return typeof access === "object" ? access.allowed : !!access;
+  }, [canAccess]);
+
   const allowedModules = useMemo(() => {
     const list = [];
     NAV_REGISTRY.forEach(item => {
-      if (canAccess(item.module)) {
+      if (hasPermissionOnly(item.module)) {
         list.push(item);
       }
       if (item.subItems) {
         item.subItems.forEach(sub => {
-          if (canAccess(sub.module)) list.push(sub);
+          if (hasPermissionOnly(sub.module)) list.push(sub);
         });
       }
     });
     return list;
-  }, [canAccess]);
+  }, [hasPermissionOnly]);
 
   useEffect(() => {
     if (!NAV_REGISTRY || !Array.isArray(NAV_REGISTRY)) {
@@ -57,7 +62,9 @@ export default function PermissionGuard({ children }) {
     }
 
     if (currentModule) {
-      if (canAccess(currentModule)) {
+      // Route visibility should follow permission only.
+      // If module is deactivated, page will still open and show deactivated message.
+      if (hasPermissionOnly(currentModule)) {
         setAuthorized(true);
       } else {
         router.push(allowedModules[0].href);
@@ -65,7 +72,7 @@ export default function PermissionGuard({ children }) {
     } else {
       setAuthorized(true);
     }
-  }, [pathname, canAccess, router, allowedModules]);
+  }, [pathname, hasPermissionOnly, router, allowedModules]);
   
   
   if (noAccessAtAll) {
@@ -75,8 +82,8 @@ export default function PermissionGuard({ children }) {
           <div className="text-rose-500 text-5xl mb-4">⚠️</div>
           <h1 className="text-xl font-bold uppercase tracking-widest text-rose-400">Access Denied</h1>
           <p className="text-slate-400 text-sm leading-relaxed">
-            Sorry, you don't have any permissions to access this portal. 
-            Please contact the **Admin** or **Super Admin** to assign roles.
+            Sorry, you do not currently have access to this portal.
+            Please contact authorized personnel to assign the required permissions.
           </p>
           <button 
             onClick={handleLogout} 

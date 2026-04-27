@@ -5,6 +5,9 @@ import TableSkeleton from "@/components/common-table/TableSkeleton";
 import CardSkeleton from "@/components/common-table/CardSkeleton";
 import EmptyState from "@/components/common-table/EmptyState";
 
+/** Pixels: checkbox column — colgroup + sticky offsets (`table-fixed` otherwise stretches the first col). */
+const DATA_TABLE_SELECTION_COL_PX = 36;
+
 export default function DataTable({ 
   headers = [], 
   data = [], 
@@ -17,15 +20,27 @@ export default function DataTable({
   showSelection = true, 
   allowCopy = false, 
   selectedId = null, 
-  onSelect, 
+  onSelect,
   skeletonCount = 10, 
   emptyMessage = "No records found", 
+  emptySubMessage,
   emptyIcon: EmptyIcon = Inbox, 
   cardConfig = { titleIdx: 1, badgeIndices: [5, 4], detailIndices: [2, 3], footerIdx: 6 },
   onLoadMore,
   hasMore = false,
   totalItems = 0
 }) {
+  const selW = DATA_TABLE_SELECTION_COL_PX;
+  const lastApiError = typeof window !== "undefined" ? window.__LAST_API_ERROR__ : null;
+  const isModuleDeactivated =
+    lastApiError?.status === 403 &&
+    lastApiError?.message === "This module has been deactivated by authorized personnel.";
+  const resolvedEmptyMessage = isModuleDeactivated
+    ? "This module has been deactivated by authorized personnel."
+    : emptyMessage;
+  const resolvedEmptySubMessage = isModuleDeactivated
+    ? "No records are available for the current selection."
+    : emptySubMessage;
   
   // --- 0. INFINITE SCROLL LOGIC ---
   const observer = useRef();
@@ -129,12 +144,17 @@ export default function DataTable({
     }
   }, [allowCopy, headers]);
   
-  const handleSelection = (item, id) => {
-    onSelect?.(id);
+  const handleRowClick = (item, id) => {
+    if (showSelection) {
+      onSelect?.(id);
+    }
     if (allowCopy) {
       copyRowToClipboard(item);
     }
   };
+
+  /** Row is only interactive for selection when the checkbox column is shown, or for copy when enabled. */
+  const rowClickable = showSelection || allowCopy;
   
   // --- 3. HELPERS ---
   const getId = (item, index) => {
@@ -182,16 +202,29 @@ export default function DataTable({
 
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 border-t border-slate-200">
           <table className="w-full text-sm border-separate border-spacing-0 table-fixed min-w-full">
+            <colgroup>
+              {showSelection && (
+                <col style={{ width: selW, minWidth: selW, maxWidth: selW }} />
+              )}
+              {headers.map((h, i) => {
+                const [, key, , config = {}] = h;
+                const cw = columnWidths[key || i] ?? config.width ?? 150;
+                const w = typeof cw === "number" ? `${cw}px` : cw;
+                return <col key={key || i} style={{ width: w }} />;
+              })}
+            </colgroup>
             <thead className="sticky top-0 z-[60]">
               <tr className="bg-slate-50">
                 {showSelection && (
-                  /* MODIFIED: Fixed narrow width for checkbox header */
-                  <th className="w-[35px] min-w-[35px] max-w-[35px] sticky left-0 top-0 z-[70] bg-slate-50 px-1 py-3 border-b border-r border-slate-200 text-center" />
+                  <th
+                    className="sticky left-0 top-0 z-[70] bg-slate-50 py-3 px-0 border-b border-r border-slate-200 text-center box-border"
+                    style={{ width: selW, minWidth: selW, maxWidth: selW }}
+                  />
                 )}
                 {headers.map(([label, key, renderFn, config = {}], i) => {
                   const isSticky = config?.fixed;
                   const isSortable = key && config.sortable !== false;
-                  const stickyLeft = isSticky ? (config.offset || 0) + (showSelection ? 35 : 0) : 0;
+                  const stickyLeft = isSticky ? (config.offset || 0) + (showSelection ? selW : 0) : 0;
                   const currentWidth = columnWidths[key || i] || config.width || 150;
 
                   return (
@@ -227,9 +260,15 @@ export default function DataTable({
             </thead>
             <tbody className={`bg-white transition-opacity duration-200 ${isRefreshing ? "opacity-40" : "opacity-100"}`}>
               {isInitialLoad ? (
-                <TableSkeleton rows={skeletonCount} cols={headers.length} showSelection={showSelection} />
+                <TableSkeleton rows={skeletonCount} cols={headers.length} showSelection={showSelection} selectionColPx={selW} />
               ) : data.length === 0 ? (
-                <EmptyState isTable={true} colSpan={headers.length + (showSelection ? 1 : 0)} message={emptyMessage} icon={EmptyIcon} />
+                <EmptyState
+                  isTable={true}
+                  colSpan={headers.length + (showSelection ? 1 : 0)}
+                  message={resolvedEmptyMessage}
+                  subMessage={resolvedEmptySubMessage}
+                  icon={EmptyIcon}
+                />
               ) : (
                 <>
                   {data.map((item, rowIndex) => {
@@ -242,19 +281,23 @@ export default function DataTable({
                       <tr 
                         key={currentId} 
                         ref={isLastElement ? lastElementRef : null}
-                        onClick={() => handleSelection(item, currentId)} 
-                        className="group cursor-pointer"
+                        onClick={rowClickable ? () => handleRowClick(item, currentId) : undefined}
+                        className={`group${rowClickable ? " cursor-pointer" : ""}`}
                       >
                         {showSelection && (
-                          /* MODIFIED: Fixed narrow width and centering for checkbox cell */
-                          <td className={`sticky left-0 z-30 px-1 py-2 border-b border-r border-slate-200 transition-colors ${cellBg} w-[35px] min-w-[35px] max-w-[35px] text-center`}>
-                            <input type="checkbox" checked={isSelected} readOnly className="w-3 h-3 rounded border-slate-300 accent-indigo-600 cursor-pointer" />
+                          <td
+                            className={`sticky left-0 z-30 py-2 px-0 border-b border-r border-slate-200 transition-colors ${cellBg} text-center align-middle box-border`}
+                            style={{ width: selW, minWidth: selW, maxWidth: selW }}
+                          >
+                            <span className="inline-flex items-center justify-center w-full">
+                              <input type="checkbox" checked={isSelected} readOnly className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 accent-indigo-600 cursor-pointer" />
+                            </span>
                           </td>
                         )}
                         {headers.map((h, i) => {
                           const config = h[3] || {};
                           const isSticky = config?.fixed;
-                          const stickyLeft = isSticky ? (config.offset || 0) + (showSelection ? 35 : 0) : 0;
+                          const stickyLeft = isSticky ? (config.offset || 0) + (showSelection ? selW : 0) : 0;
                           const currentWidth = columnWidths[h[1] || i] || config.width || 150;
                           const allowWrap = config.wrap === true;
 
@@ -309,7 +352,7 @@ export default function DataTable({
         {isInitialLoad ? (
           <CardSkeleton count={skeletonCount} />
         ) : data.length === 0 ? (
-          <EmptyState isTable={false} message={emptyMessage} icon={EmptyIcon} />
+          <EmptyState isTable={false} message={resolvedEmptyMessage} subMessage={resolvedEmptySubMessage} icon={EmptyIcon} />
         ) : (
           <>
             <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity duration-200 ${isRefreshing ? "opacity-30" : "opacity-100"}`}>
@@ -326,8 +369,8 @@ export default function DataTable({
                   <div
                     key={currentId}
                     ref={isLastElement ? lastElementRef : null}
-                    onClick={() => handleSelection(item, currentId)}
-                    className={`relative bg-white rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden ${isSelected ? "border-indigo-600 shadow-lg shadow-indigo-100 ring-[0.5px] ring-indigo-600" : "border-slate-200 hover:border-slate-300 hover:shadow-md"}`}
+                    onClick={rowClickable ? () => handleRowClick(item, currentId) : undefined}
+                    className={`relative bg-white rounded-xl border transition-all duration-200 overflow-hidden ${rowClickable ? "cursor-pointer" : ""} ${isSelected ? "border-indigo-600 shadow-lg shadow-indigo-100 ring-[0.5px] ring-indigo-600" : "border-slate-200 hover:border-slate-300 hover:shadow-md"}`}
                   >
                     {isSelected && <div className="absolute top-0 left-0 right-0 h-[3px] bg-indigo-600" />}
                     <div className="p-4">

@@ -151,8 +151,8 @@ export default function UserModal({ open, onClose, onSuccess, editUser }) {
       try {
         const res = await moduleService.getAll({ is_active: true });
         setModules(res.data || []);
-      } catch {
-        toast.error("Failed to load modules");
+      } catch (err) {
+        toast.error(err?.message || "Failed to load modules");
       }
     };
     fetchModules();
@@ -178,8 +178,8 @@ export default function UserModal({ open, onClose, onSuccess, editUser }) {
         });
         setUsernameEdited(true);
         setPermissions(buildInitialPerms(modules, user.permissions));
-      } catch {
-        toast.error("Failed to load user data");
+      } catch (err) {
+        toast.error(err?.message || "Failed to load user data");
       } finally {
         setLoadingUser(false);
       }

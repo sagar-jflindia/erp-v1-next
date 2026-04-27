@@ -146,7 +146,9 @@ export default function StickerCreationModel({ open, onClose, data, onSuccess, c
       setDlTracking({});
       await fetchGeneratedSummary(selectedRow);
       toast.success("Stickers Generated!");
-    } catch (err) { toast.error("Generation failed"); }
+    } catch (err) { 
+      toast.error(err.message || "Generation failed");
+    }
     finally { setSubmitting(false); }
   };
 

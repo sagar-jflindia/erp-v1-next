@@ -92,7 +92,7 @@ export default function BoxTablePage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load box records");
+      toast.error(err?.message || "Failed to load box records");
     } finally {
       setLoading(false);
     }

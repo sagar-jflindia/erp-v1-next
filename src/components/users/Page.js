@@ -59,10 +59,12 @@ export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
+  const [blockedMessage, setBlockedMessage] = useState("");
 
   const fetchUsers = useCallback(async (isLoadMore = false) => {
     if (!isLoadMore) setLoading(true);
     try {
+      setBlockedMessage("");
       const currentPage = isLoadMore ? params.page + 1 : 1;
       const apiParams = {
         page: currentPage, limit: params.pageSize, sortBy: params.sortKey, order: params.sortDir,
@@ -87,7 +89,18 @@ export default function UsersPage() {
       }
       setTotalItems(body.data?.total ?? (Array.isArray(list) ? list.length : 0));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load users");
+      const msg = err?.message || "";
+      const denied = err?.status === 403 && (
+        msg.includes("Access Denied — module") ||
+        msg.toLowerCase().includes("deactivated")
+      );
+      if (denied) {
+        setUsers([]);
+        setTotalItems(0);
+        setBlockedMessage(msg);
+      } else {
+        toast.error(err?.message || "Failed to load users");
+      }
     } finally {
       setLoading(false);
     }
@@ -203,7 +216,10 @@ export default function UsersPage() {
           <DataTable
             headers={HEADERS} getRowId={(row) => row.id} data={users} loading={loading}
             viewMode={viewMode} allowCopy={true} showSelection={true} skeletonCount={params.pageSize}
-            emptyIcon={Users} sortKey={params.sortKey} sortDir={params.sortDir}
+            emptyIcon={Users}
+            emptyMessage={blockedMessage || "No users found"}
+            emptySubMessage={blockedMessage ? "No records are available for the current selection." : undefined}
+            sortKey={params.sortKey} sortDir={params.sortDir}
             onSort={(key) => setParams(p => ({ ...p, sortKey: key, sortDir: p.sortKey === key && p.sortDir === "asc" ? "desc" : "asc", page: 1 }))}
             selectedId={selected} onSelect={setSelected}
             onLoadMore={handleLoadMore}

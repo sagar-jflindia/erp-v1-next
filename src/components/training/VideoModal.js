@@ -47,6 +47,15 @@ export default function VideoModal({ slot, onClose, onSuccess }) {
   }, [slot]);
 
   const handleSave = async () => {
+    if (slot.isEdit && !slot.canEdit) {
+      toast.error("You do not have permission to edit training videos.");
+      return;
+    }
+    if (!slot.isEdit && !slot.canAdd) {
+      toast.error("You do not have permission to add training videos.");
+      return;
+    }
+
     const e = {};
     if (!form.title.trim()) e.title = "Title is required";
     if (!form.video_url.trim()) e.video_url = "Video URL is required";
@@ -74,21 +83,25 @@ export default function VideoModal({ slot, onClose, onSuccess }) {
       }
       onSuccess();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Operation failed");
+      toast.error(err?.message || "Operation failed");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!slot.canDelete) {
+      toast.error("You do not have permission to remove training videos.");
+      return;
+    }
     if (!confirm("Are you sure you want to remove this video?")) return;
     setSaving(true);
     try {
       await trainingVideoService.delete(slot.id);
       toast.success("Video removed successfully");
       onSuccess();
-    } catch {
-      toast.error("Failed to remove video");
+    } catch (err) {
+      toast.error(err?.message || "Failed to remove video");
     } finally {
       setSaving(false);
     }
@@ -96,7 +109,7 @@ export default function VideoModal({ slot, onClose, onSuccess }) {
 
   const footerActions = (
     <div className="flex items-center justify-between w-full">
-      {slot.isEdit && (
+      {slot.isEdit && slot.canDelete && (
         <button
           onClick={handleDelete}
           disabled={saving}
@@ -113,7 +126,7 @@ export default function VideoModal({ slot, onClose, onSuccess }) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || (slot.isEdit ? !slot.canEdit : !slot.canAdd)}
           className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
         >
           {saving ? "Processing..." : slot.isEdit ? "Update Changes" : "Save Video"}

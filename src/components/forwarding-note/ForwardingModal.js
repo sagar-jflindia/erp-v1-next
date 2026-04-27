@@ -126,7 +126,7 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
               });
             }
           } catch (err) {
-            toast.error("Failed to load forwarding note details.");
+            toast.error(err?.message || "Failed to load forwarding note details.");
           } finally {
             setLoading(false);
           }
@@ -204,7 +204,7 @@ export default function ForwardingModal({ open, onClose, onSuccess, editData, mo
       }
     } catch (err) {
       updateItemRow(idx, { fetching: false });
-      toast.error("Failed to fetch available stock for this item.");
+      toast.error(err?.message || "Failed to fetch available stock for this item.");
     }
   };
 

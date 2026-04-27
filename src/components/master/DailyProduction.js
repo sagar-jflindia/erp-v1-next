@@ -13,6 +13,14 @@ import DataTable from "../ui/DataTable";
 import ViewToggle from "../ui/ViewToggle";
 import ActionButton from "../ui/ActionButton";
 import GlobalDetailModal from "../common/GlobalDetailModal";
+import {
+  MasterDetailBody,
+  MasterDetailHero,
+  MasterDetailSection,
+  MasterDetailGrid,
+  MasterDetailKV,
+  MasterDetailProse,
+} from "./MasterDetailLayout";
 import StickerCreationModel from "../stickers/StickerCreationModel";
 import DateRangeFilter from "../common/DateRangeFilter";
 
@@ -94,7 +102,7 @@ export default function DailyProductionPage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load production data");
+      toast.error(err?.message || "Failed to load production data");
       setItems([]);
     } finally {
       setLoading(false);
@@ -295,36 +303,38 @@ export default function DailyProductionPage() {
       {/* DETAIL MODAL */}
       <GlobalDetailModal open={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} title="Production Details" icon={Package}>
         {selectedRecord && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-indigo-50 p-3 border border-indigo-100">
-                <p className="text-[9px] font-bold text-indigo-400 uppercase mb-1">Doc Number</p>
-                <p className="text-sm font-bold text-indigo-700 uppercase">{selectedRecord.doc_no}</p>
-              </div>
-              <div className="bg-slate-50 p-3 border border-slate-200">
-                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Entry Date</p>
-                <p className="text-sm font-bold text-slate-700">{dayjs(selectedRecord.doc_dt).format("DD/MM/YYYY")}</p>
-              </div>
-            </div>
-            {/* Customer Details */}
-            <div className="p-3 bg-slate-50 border border-slate-200">
-              <p className="text-[9px] font-bold text-slate-400 uppercase italic mb-1">Customer Name</p>
-              <p className="text-xs font-bold text-slate-700 uppercase">
-                {selectedRecord.acc_name} <span className="text-indigo-400">[{selectedRecord.acc_code}]</span>
-              </p>
-            </div>
-            {/* Item Details */}
-            <div className="p-3 bg-white border border-slate-200">
-              <p className="text-[9px] font-bold text-indigo-400 uppercase italic mb-1">Item Specification</p>
-              <p className="text-xs font-bold text-slate-800 uppercase">{selectedRecord.item_code}</p>
-              <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase italic leading-tight">{selectedRecord.item_desc}</p>
-            </div>
-            {/* Total Qty */}
-            <div className="flex justify-between items-center bg-emerald-50 p-3 border border-emerald-200">
-              <span className="text-emerald-700 font-bold text-[10px] uppercase">Total Qty</span>
-              <span className="text-emerald-700 font-black text-lg">{parseFloat(selectedRecord.total_qty || 0).toLocaleString()}</span>
-            </div>
-          </div>
+          <MasterDetailBody>
+            <MasterDetailHero
+              eyebrow="Daily production"
+              icon={Package}
+              title={selectedRecord.acc_name}
+              badge={`Doc ${selectedRecord.doc_no} · ${dayjs(selectedRecord.doc_dt).format("DD/MM/YYYY")}`}
+            />
+            <MasterDetailGrid columns={2}>
+              <MasterDetailSection label="Document no." tone="indigo">
+                <span>{selectedRecord.doc_no}</span>
+              </MasterDetailSection>
+              <MasterDetailSection label="Entry date" tone="white">
+                <span>{dayjs(selectedRecord.doc_dt).format("DD/MM/YYYY")}</span>
+              </MasterDetailSection>
+            </MasterDetailGrid>
+            <MasterDetailSection label="Customer code" tone="white">
+              <span>{selectedRecord.acc_code}</span>
+            </MasterDetailSection>
+            <MasterDetailSection label="Item code" tone="white">
+              <span>{selectedRecord.item_code}</span>
+            </MasterDetailSection>
+            {selectedRecord.item_desc ? (
+              <MasterDetailProse label="Item description" tone="slate">
+                {selectedRecord.item_desc}
+              </MasterDetailProse>
+            ) : null}
+            <MasterDetailKV
+              label="Total qty"
+              value={parseFloat(selectedRecord.total_qty || 0).toLocaleString()}
+              valueClassName="text-emerald-700 text-base tabular-nums"
+            />
+          </MasterDetailBody>
         )}
       </GlobalDetailModal>
 

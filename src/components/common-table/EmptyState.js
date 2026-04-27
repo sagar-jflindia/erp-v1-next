@@ -1,4 +1,10 @@
-const EmptyState = ({ message, subMessage = "Try adjusting your filters or search to find what you're looking for.", icon: Icon, isTable, colSpan }) => {
+const EmptyState = ({
+  message = "No records found",
+  subMessage = "No records are available for the current selection.",
+  icon: Icon,
+  isTable,
+  colSpan
+}) => {
   const content = (
     <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
       <div className="w-20 h-20 rounded-[2rem] bg-slate-50 flex items-center justify-center mb-5 border border-slate-100/50 shadow-sm">

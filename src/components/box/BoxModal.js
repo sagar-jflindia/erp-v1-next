@@ -108,7 +108,7 @@ export default function BoxModal({ open, onClose, onSuccess, editData, mode = "a
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || "Operation failed");
+      toast.error(err?.message || "Operation failed");
     } finally {
       setLoading(false);
     }

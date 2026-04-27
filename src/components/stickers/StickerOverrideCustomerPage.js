@@ -91,7 +91,7 @@ export default function StickerOverrideCustomerPage() {
       }
       setTotalItems(body.total ?? 0);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load override requests");
+      toast.error(err?.message || "Failed to load override requests");
     } finally {
       setLoading(false);
     }

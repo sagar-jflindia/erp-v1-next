@@ -22,7 +22,7 @@ export default function DeleteModal({ item, onClose, onSuccess, service, entityL
       onSuccess();
       onClose();
     } catch (err) {
-      const msg = err.response?.data?.message || "";
+      const msg = err?.message || "";
       if (
         msg.toLowerCase().includes("foreign") ||
         msg.toLowerCase().includes("constraint") ||

@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCredentials, selectUser } from "@/features/authSlice";
+import { setCredentials, selectRole, selectUser } from "@/features/authSlice";
 import { io } from "socket.io-client";
 import { FILE_BASE_URL } from "@/utils/lib";
+import { userService } from "@/services/user";
 
 export const useSocket = (userId) => {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
+  const role = useSelector(selectRole);
 
   useEffect(() => {
     if (!userId) return;
@@ -23,14 +25,38 @@ export const useSocket = (userId) => {
         dispatch(
           setCredentials({
             ...user,
+            role,
             permissions,
           }),
         );
       }
     });
 
+    const refreshAuthFromServer = async () => {
+      try {
+        const res = await userService.me();
+        const me = res?.data;
+        if (!me) return;
+        dispatch(
+          setCredentials({
+            id: me.id,
+            name: me.name,
+            email: me.email,
+            role: me.type || role || "user",
+            permissions: me.permissions || [],
+          }),
+        );
+      } catch (err) {
+        // Silent fail: existing session state remains until next normal refresh.
+        console.error("Failed to refresh auth after socket update:", err);
+      }
+    };
+
+    socket.on("module_status_updated", refreshAuthFromServer);
+
     return () => {
+      socket.off("module_status_updated", refreshAuthFromServer);
       socket.disconnect();
     };
-  }, [userId]);
+  }, [userId, user, role, dispatch]);
 };

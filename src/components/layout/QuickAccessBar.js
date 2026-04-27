@@ -9,12 +9,14 @@ import { THEME_CONFIG } from "@/config/theme";
 import Drawer from "@/components/ui/Drawer";
 import { trainingVideoService } from "@/services/training";
 import { selectPermissions } from "@/features/authSlice";
+import { useCanAccess } from "@/hooks/useCanAccess";
 
 export default function QuickAccessBar() {
   const router = useRouter();
   const pathname = usePathname();
   const permissions = useSelector(selectPermissions);
   const role = useSelector(state => state.auth.role);
+  const canAccess = useCanAccess();
   const [helpOpen, setHelpOpen] = useState(false);
   const [expandedDesc, setExpandedDesc] = useState({});
   const [trainingData, setTrainingData] = useState([]);
@@ -34,11 +36,10 @@ export default function QuickAccessBar() {
   const filteredQuickLinks = useMemo(() => {
     return QUICK_LINKS_CONFIG.filter(link => {
       if (!link.module) return true;
-      if (role === "super_admin") return true;
-      const perm = permissions?.find(p => p.module_name === link.module);
-      return perm?.can_view === true;
+      const access = canAccess(link.module, "view");
+      return typeof access === "object" ? access.allowed : !!access;
     });
-  }, [permissions, role]);
+  }, [canAccess]);
 
   const fetchVideos = async () => {
     console.log(currentModule)

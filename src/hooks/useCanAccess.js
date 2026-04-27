@@ -7,7 +7,18 @@ export const useCanAccess = () => {
 
   const publicModules = []; 
 
-  const checkAccess = (module, action = "view") => {
+  const isModuleEnabled = (perm) => {
+    const statusCandidate = perm?.module_is_active;
+    if (statusCandidate === undefined || statusCandidate === null) return true;
+    if (typeof statusCandidate === "string") {
+      const normalized = statusCandidate.trim().toLowerCase();
+      return normalized === "1" || normalized === "true" || normalized === "active";
+    }
+    return !!statusCandidate;
+  };
+
+  const checkAccess = (module, action = "view", options = {}) => {
+    const { ignoreModuleStatus = false } = options;
     // 1. Super Admin
     if (role === "super_admin") {
       if (action === "view" || action === "edit") {
@@ -26,6 +37,7 @@ export const useCanAccess = () => {
     const perm = permissions?.find(p => p.module_name === module);
 
     if (!perm) return false;
+    if (!ignoreModuleStatus && !isModuleEnabled(perm)) return false;
 
     // 4. Special logic for view/edit days
     if (action === "view" || action === "edit") {

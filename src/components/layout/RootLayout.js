@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "./Sidebar"; 
 import Navbar from "./Navbar";
 import { THEME_CONFIG } from "@/config/theme";
 import { useSelector } from "react-redux";
-import { selectUser } from "@/features/authSlice";
+import { selectUser, selectPermissions } from "@/features/authSlice";
 import { usePathname } from "next/navigation";
 import { useCanAccess } from "@/hooks/useCanAccess";
 import { NAV_REGISTRY } from "@/config/navRegistry";
@@ -15,6 +15,7 @@ export default function RootLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const userData = useSelector(selectUser);
+  const permissions = useSelector(selectPermissions);
   const pathname = usePathname();
   const canAccess = useCanAccess();
 
@@ -24,8 +25,8 @@ export default function RootLayout({ children }) {
     setIsLoaded(true);
   }, []);
 
-  const hasPageAccess = useMemo(() => {
-    if (!isLoaded) return true;
+  const accessState = useMemo(() => {
+    if (!isLoaded) return { hasPageAccess: true, moduleDeactivated: false };
     
     // 1. Find the module associated with current path
     let currentModule = null;
@@ -47,12 +48,27 @@ export default function RootLayout({ children }) {
     findModule(NAV_REGISTRY);
 
     // 2. If no module found, it's a public/unknown page (like Dashboard)
-    if (!currentModule) return true;
+    if (!currentModule) return { hasPageAccess: true, moduleDeactivated: false };
 
-    // 3. Check permission
-    const access = canAccess(currentModule);
-    return typeof access === 'object' ? access.allowed : access;
-  }, [pathname, isLoaded, canAccess]);
+    // 3. Gate layout by permission only.
+    // Deactivated module pages should still open and show deactivated messaging in-page.
+    const access = canAccess(currentModule, "view", { ignoreModuleStatus: true });
+    const hasPageAccess = typeof access === "object" ? access.allowed : access;
+    const perm = permissions?.find((p) => p.module_name === currentModule);
+    const statusCandidate = perm?.module_is_active;
+    const moduleDeactivated =
+      statusCandidate !== undefined &&
+      statusCandidate !== null &&
+      !(
+        statusCandidate === true ||
+        statusCandidate === 1 ||
+        String(statusCandidate).trim().toLowerCase() === "true" ||
+        String(statusCandidate).trim().toLowerCase() === "1" ||
+        String(statusCandidate).trim().toLowerCase() === "active"
+      );
+
+    return { hasPageAccess, moduleDeactivated };
+  }, [pathname, isLoaded, canAccess, permissions]);
 
   const handleToggleCollapse = () => {
     setCollapsed((prev) => {
@@ -85,7 +101,7 @@ export default function RootLayout({ children }) {
         <main className={`flex-1 overflow-y-auto overflow-x-hidden ${THEME_CONFIG.footerBg}`}>
           <div className="w-full min-h-full from-black/20 to-transparent bg-[#f0f4f8]">
             <div className="mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500 min-h-full p-2 md:p-2">
-              {hasPageAccess ? (
+              {accessState?.hasPageAccess ? (
                 children
               ) : (
                 <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4">
@@ -94,7 +110,7 @@ export default function RootLayout({ children }) {
                   </div>
                   <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Access Restricted</h1>
                   <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-8">
-                    You do not have the required permissions to view this module. Please contact your administrator to request access.
+                    You do not have the required permissions to view this module. Please contact authorized personnel for access.
                   </p>
                   <button 
                     onClick={() => window.location.href = '/'}

@@ -107,7 +107,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
             setLocHasError((d.locations || []).map(() => false));
           }
         } catch (err) {
-          toast.error("Failed to fetch inward details");
+          toast.error(err?.message || "Failed to fetch inward details");
         } finally {
           setLoading(false);
         }
@@ -341,7 +341,7 @@ export default function InwardModal({ open, onClose, onSuccess, editData, mode =
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err?.response?.data?.message || MSG.INWARD_FAILED);
+      toast.error(err?.message || MSG.INWARD_FAILED);
     } finally {
       setLoading(false);
     }

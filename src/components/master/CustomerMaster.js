@@ -10,6 +10,7 @@ import DataTable from "../ui/DataTable";
 import ViewToggle from "../ui/ViewToggle";
 import ActionButton from "../ui/ActionButton";
 import GlobalDetailModal from "../common/GlobalDetailModal";
+import { MasterDetailBody, MasterDetailHero, MasterDetailSection } from "./MasterDetailLayout";
 import DateRangeFilter from "../common/DateRangeFilter";
 
 export default function CustomerLedgerPage() {
@@ -57,7 +58,7 @@ export default function CustomerLedgerPage() {
       }
       setTotalItems(body.total ?? list.length);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to load customers");
+      toast.error(err?.message || "Failed to load customers");
     } finally {
       setLoading(false);
     }
@@ -212,27 +213,19 @@ export default function CustomerLedgerPage() {
         title="Customer Profile"
         icon={UserCheck}
       >
-        <div className="space-y-4">
-          <div className="flex flex-col items-center py-6 bg-slate-50 border border-slate-200 rounded-none shadow-inner">
-            <div className="w-16 h-16 bg-white border border-slate-300 flex items-center justify-center text-indigo-600 mb-3 shadow-sm">
-              <UserCheck size={32} />
-            </div>
-            <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight text-center px-4 leading-tight">
-              {selectedRecord?.acc_name}
-            </h3>
-            <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 mt-2 border border-indigo-100 uppercase tracking-widest">
-              A/C Code: {selectedRecord?.acc_code}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <div className="p-3 bg-white border border-slate-200">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 italic">Category</p>
-              <p className="text-xs font-bold text-slate-700 uppercase">Customer Name</p>
-            </div>
-
-          </div>
-        </div>
+        {selectedRecord && (
+          <MasterDetailBody>
+            <MasterDetailHero
+              eyebrow="Customer ledger"
+              icon={UserCheck}
+              title={selectedRecord.acc_name}
+              badge={selectedRecord.acc_code != null ? `A/C code: ${selectedRecord.acc_code}` : null}
+            />
+            <MasterDetailSection label="Account type" tone="white">
+              <span>Customer</span>
+            </MasterDetailSection>
+          </MasterDetailBody>
+        )}
       </GlobalDetailModal>
     </div>
   );

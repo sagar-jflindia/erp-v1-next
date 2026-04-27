@@ -11,6 +11,13 @@ import DataTable from "../ui/DataTable";
 import ViewToggle from "../ui/ViewToggle";
 import ActionButton from "../ui/ActionButton";
 import GlobalDetailModal from "../common/GlobalDetailModal";
+import {
+  MasterDetailBody,
+  MasterDetailHero,
+  MasterDetailSection,
+  MasterDetailGrid,
+  MasterDetailMetrics,
+} from "./MasterDetailLayout";
 import DateRangeFilter from "../common/DateRangeFilter";
 
 export default function ProductMasterPage() {
@@ -57,7 +64,7 @@ export default function ProductMasterPage() {
       }
       setTotalItems(body.total ?? list.length);
     } catch (err) {
-      toast.error("Failed to load items");
+      toast.error(err?.message || "Failed to load items");
     } finally {
       setLoading(false);
     }
@@ -177,7 +184,7 @@ export default function ProductMasterPage() {
         <div className="flex-1 min-h-0 relative bg-white flex flex-col overflow-hidden">
           <DataTable
             headers={HEADERS} data={items} loading={loading} viewMode={viewMode}
-            showSelection={false} allowCopy={true} sortKey={params.sortKey} sortDir={params.sortDir} onSort={toggleSort}
+            showSelection={true} allowCopy={true} sortKey={params.sortKey} sortDir={params.sortDir} onSort={toggleSort}
             selectedId={selected} onSelect={setSelected} getRowId={(r) => r.itemdcode}
             emptyIcon={Package}
             onLoadMore={handleLoadMore}
@@ -212,38 +219,32 @@ export default function ProductMasterPage() {
         title="Product Master Details"
         icon={Package}
       >
-        <div className="space-y-4">
-            <div className="bg-slate-50 p-4 border border-slate-200 rounded-none shadow-inner">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 italic">Full Description</p>
-                <p className="text-sm font-bold text-slate-700 uppercase leading-tight">{selectedRecord?.itemdesc}</p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 border border-slate-200">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 italic">Group Name</p>
-                  <p className="text-xs font-bold text-indigo-600 uppercase">{selectedRecord?.grpname || "N/A"}</p>
-              </div>
-              <div className="p-3 border border-slate-200">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 italic">Primary Item</p>
-                  <p className="text-xs font-bold text-slate-600 uppercase">{selectedRecord?.primitemdesc || "—"}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-0 border border-slate-200">
-                <div className="bg-white p-3 text-center border-r border-slate-200">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Min Qty</p>
-                    <p className="text-sm font-bold text-slate-700">{selectedRecord?.minqty ?? 0}</p>
-                </div>
-                <div className="bg-white p-3 text-center border-r border-slate-200">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Max Qty</p>
-                    <p className="text-sm font-bold text-slate-700">{selectedRecord?.maxqty ?? 0}</p>
-                </div>
-                <div className="bg-amber-50 p-3 text-center">
-                    <p className="text-[9px] font-bold text-amber-500 uppercase mb-1">Reorder</p>
-                    <p className="text-sm font-bold text-amber-600">{selectedRecord?.reorderqty ?? 0}</p>
-                </div>
-            </div>
-        </div>
+        {selectedRecord && (
+          <MasterDetailBody>
+            <MasterDetailHero
+              eyebrow="Product master"
+              icon={Package}
+              title={selectedRecord.itemdesc}
+              badge={selectedRecord.item_code ? `Item code: ${selectedRecord.item_code}` : null}
+            />
+            <MasterDetailGrid columns={2}>
+              <MasterDetailSection label="Group name" tone="white">
+                <span>{selectedRecord.grpname || "N/A"}</span>
+              </MasterDetailSection>
+              <MasterDetailSection label="Primary item" tone="white">
+                <span>{selectedRecord.primitemdesc || "—"}</span>
+              </MasterDetailSection>
+            </MasterDetailGrid>
+            <MasterDetailMetrics
+              columns={3}
+              items={[
+                { label: "Min qty", value: selectedRecord.minqty ?? 0 },
+                { label: "Max qty", value: selectedRecord.maxqty ?? 0 },
+                { label: "Reorder", value: selectedRecord.reorderqty ?? 0, emphasis: true },
+              ]}
+            />
+          </MasterDetailBody>
+        )}
       </GlobalDetailModal>
     </div>
   );
